@@ -31,4 +31,5 @@ ENV PYTHONPATH=/app
 EXPOSE $PORT
 
 # Run startup script
-CMD ["./start.sh"]
+# CMD ["./start.sh"]
+CMD alembic upgrade head && uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000}
