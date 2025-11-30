@@ -31,4 +31,4 @@ ENV PYTHONPATH=/app
 EXPOSE $PORT
 
 # Run startup script
-CMD ["./server/start.sh"]
+CMD ["./start.sh"]
