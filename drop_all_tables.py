@@ -9,7 +9,7 @@ engine = create_engine(DATABASE_URL)
 
 tables = [
     'notifications', 'stock_alerts', 'payments', 'bill_items', 
-    'bills', 'products', 'categories', 'clients', 'admins', 'alembic_version'
+    'bills', 'products', 'categories', 'clients', 'admins', 'alembic_version' , 'otps'
 ]
 
 with engine.connect() as conn:

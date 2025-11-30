@@ -1,8 +1,8 @@
-"""Initial migration with all tables v6 
+"""Initial migration
 
-Revision ID: fbcb697fe9bc
+Revision ID: f1bf3b2ab481
 Revises: 
-Create Date: 2025-11-30 18:26:15.182737
+Create Date: 2025-11-30 20:32:28.515130
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'fbcb697fe9bc'
+revision: str = 'f1bf3b2ab481'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -58,6 +58,19 @@ def upgrade() -> None:
     op.create_index(op.f('ix_clients_email'), 'clients', ['email'], unique=True)
     op.create_index(op.f('ix_clients_id'), 'clients', ['id'], unique=False)
     op.create_index(op.f('ix_clients_username'), 'clients', ['username'], unique=True)
+    op.create_table('otps',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('email', sa.String(length=255), nullable=False),
+    sa.Column('otp_code', sa.String(length=6), nullable=False),
+    sa.Column('otp_type', sa.String(length=50), nullable=False),
+    sa.Column('is_used', sa.Boolean(), nullable=True),
+    sa.Column('is_verified', sa.Boolean(), nullable=True),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_otps_email'), 'otps', ['email'], unique=False)
+    op.create_index(op.f('ix_otps_id'), 'otps', ['id'], unique=False)
     op.create_table('bills',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('client_id', sa.Integer(), nullable=False),
@@ -171,6 +184,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_bills_id'), table_name='bills')
     op.drop_index(op.f('ix_bills_bill_number'), table_name='bills')
     op.drop_table('bills')
+    op.drop_index(op.f('ix_otps_id'), table_name='otps')
+    op.drop_index(op.f('ix_otps_email'), table_name='otps')
+    op.drop_table('otps')
     op.drop_index(op.f('ix_clients_username'), table_name='clients')
     op.drop_index(op.f('ix_clients_id'), table_name='clients')
     op.drop_index(op.f('ix_clients_email'), table_name='clients')
