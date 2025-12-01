@@ -10,7 +10,7 @@ class EmailService:
     def __init__(self):
         # Maileroo SMTP Configuration
         self.smtp_server = "smtp.maileroo.com"
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_port = int(os.getenv("SMTP_PORT", "2525"))
         self.smtp_username = os.getenv("SMTP_USERNAME")
         self.smtp_password = os.getenv("SMTP_PASSWORD")
         self.sender_email = os.getenv("SENDER_EMAIL")
