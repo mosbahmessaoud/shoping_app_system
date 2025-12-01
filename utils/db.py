@@ -106,12 +106,12 @@ def init_db():
     from models.payment import Payment
     from models.stock_alert import StockAlert
     from models.notification import Notification
-    
+
     print("🔄 Création des tables de la base de données PostgreSQL...")
     try:
         Base.metadata.create_all(bind=engine)
         print("✅ Tables créées avec succès!")
-        
+
         # Afficher les tables créées
         with engine.connect() as conn:
             result = conn.execute(text("""
@@ -122,7 +122,7 @@ def init_db():
             """))
             tables = [row[0] for row in result]
             print(f"📊 Tables créées: {', '.join(tables)}")
-            
+
     except Exception as e:
         print(f"❌ Erreur lors de la création des tables: {str(e)}")
         raise
@@ -175,43 +175,44 @@ def create_sample_data():
     from models.client import Client
     from models.category import Category
     from models.product import Product
-    
+
     print("🎲 Création de données de test...")
-    
+
     session = Session(bind=engine)
-    
+
     try:
         # Créer un admin de test
         admin = Admin(
-            username="admin",
-            email="admin@ecommerce.dz",
-            password_hash=hash_password("admin123"),
-            phone_number="+213555123456"
+            username="toufik",
+            email="ms7mosbah@gmail.com",
+            password_hash=hash_password("mosbah12"),
+            phone_number="+213658890501"
         )
         session.add(admin)
         session.flush()
-        
+
         # Créer un client de test
         client = Client(
-            username="client_test",
-            email="client@example.dz",
-            password_hash=hash_password("client123"),
+            username="messoaud",
+            email="ms7messaoud@gmail.com",
+            password_hash=hash_password("mosbah12"),
             phone_number="+213555654321",
             address="123 Rue de la République",
-            city="Ouargla"
+            city="ghardaia"
         )
         session.add(client)
         session.flush()
-        
+
         # Créer des catégories
         categories = [
-            Category(name="Électronique", description="Produits électroniques"),
+            Category(name="Électronique",
+                     description="Produits électroniques"),
             Category(name="Vêtements", description="Vêtements et accessoires"),
             Category(name="Alimentation", description="Produits alimentaires"),
         ]
         session.add_all(categories)
         session.flush()
-        
+
         # Créer des produits
         products = [
             Product(
@@ -243,14 +244,14 @@ def create_sample_data():
             ),
         ]
         session.add_all(products)
-        
+
         session.commit()
-        
+
         print("✅ Données de test créées!")
         print(f"   👤 Admin: admin@ecommerce.dz / admin123")
         print(f"   👥 Client: client@example.dz / client123")
         print(f"   📦 {len(products)} produits créés")
-        
+
     except Exception as e:
         session.rollback()
         print(f"❌ Erreur lors de la création des données de test: {str(e)}")
@@ -261,7 +262,7 @@ def create_sample_data():
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         command = sys.argv[1]
-        
+
         if command == "init":
             check_connection()
             init_db()
