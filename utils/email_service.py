@@ -1,58 +1,150 @@
 # utils/email_service.py
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Optional
 import os
+import resend
+from typing import Optional
 
 
 class EmailService:
     def __init__(self):
-        self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-        self.smtp_port = int(os.getenv("SMTP_PORT", "465"))
-        self.sender_email = os.getenv("SENDER_EMAIL")
-        self.sender_password = os.getenv("SENDER_PASSWORD")
+        self.email_provider = os.getenv("EMAIL_PROVIDER", "smtp")
 
-        # Debug: Print configuration (mask password)
-        print("=" * 60)
-        print("📧 EMAIL SERVICE CONFIGURATION")
-        print("=" * 60)
-        print(f"SMTP Server: {self.smtp_server}")
-        print(f"SMTP Port: {self.smtp_port}")
-        print(f"Sender Email: {self.sender_email}")
-        print(
-            f"Password Configured: {'✅ Yes' if self.sender_password else '❌ No'}")
-        if self.sender_password:
-            print(f"Password Length: {len(self.sender_password)} characters")
+        if self.email_provider == "resend":
+            resend.api_key = os.getenv("RESEND_API_KEY")
+            self.sender_email = os.getenv(
+                "SENDER_EMAIL", "onboarding@resend.dev")
+
+            print("=" * 60)
+            print("📧 EMAIL SERVICE CONFIGURATION (RESEND)")
+            print("=" * 60)
+            print(f"Sender Email: {self.sender_email}")
             print(
-                f"Password Preview: {self.sender_password[:3]}{'*' * (len(self.sender_password) - 3)}")
-        print("=" * 60)
+                f"API Key Configured: {'✅ Yes' if resend.api_key else '❌ No'}")
+            if resend.api_key:
+                print(
+                    f"API Key Preview: {resend.api_key[:7]}...{resend.api_key[-4:]}")
+            print("=" * 60)
+        else:
+            # Keep SMTP for local development
+            import smtplib
+            self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+            self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+            self.sender_email = os.getenv("SENDER_EMAIL")
+            self.sender_password = os.getenv("SENDER_PASSWORD")
 
-    def send_otp_email(self, recipient_email: str, otp_code: str, otp_type: str) -> bool:
-        """Send OTP via email"""
-        try:
-            print("\n" + "=" * 60)
-            print("📤 ATTEMPTING TO SEND EMAIL")
+            print("=" * 60)
+            print("📧 EMAIL SERVICE CONFIGURATION (SMTP)")
+            print("=" * 60)
+            print(f"SMTP Server: {self.smtp_server}")
+            print(f"SMTP Port: {self.smtp_port}")
+            print(f"Sender Email: {self.sender_email}")
+            print(
+                f"Password Configured: {'✅ Yes' if self.sender_password else '❌ No'}")
             print("=" * 60)
 
-            # Validate configuration
+    def send_otp_email(self, recipient_email: str, otp_code: str, otp_type: str) -> bool:
+        """Send OTP via email using configured provider"""
+        if self.email_provider == "resend":
+            return self._send_via_resend(recipient_email, otp_code, otp_type)
+        else:
+            return self._send_via_smtp(recipient_email, otp_code, otp_type)
+
+    def _send_via_resend(self, recipient_email: str, otp_code: str, otp_type: str) -> bool:
+        """Send email via Resend API"""
+        try:
+            print("\n" + "=" * 60)
+            print("📤 SENDING EMAIL VIA RESEND")
+            print("=" * 60)
+            print(f"📧 To: {recipient_email}")
+            print(f"📧 From: {self.sender_email}")
+            print(f"🔐 OTP Code: {otp_code}")
+            print(f"📝 OTP Type: {otp_type}")
+
+            subject = "Code de vérification" if otp_type == "registration" else "Réinitialisation du mot de passe"
+            print(f"📋 Subject: {subject}")
+
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+                    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h2 style="color: #333; margin-bottom: 20px;">
+                            {'Vérification de votre compte' if otp_type == 'registration' else 'Réinitialisation de mot de passe'}
+                        </h2>
+                        <p style="color: #666; font-size: 16px; line-height: 1.5;">
+                            Votre code de vérification est:
+                        </p>
+                        <div style="background-color: #f0f0f0; padding: 20px; text-align: center; border-radius: 5px; margin: 20px 0;">
+                            <h1 style="color: #4CAF50; font-size: 36px; letter-spacing: 8px; margin: 0;">
+                                {otp_code}
+                            </h1>
+                        </div>
+                        <p style="color: #666; font-size: 14px; line-height: 1.5;">
+                            Ce code expire dans <strong>10 minutes</strong>.
+                        </p>
+                        <p style="color: #999; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                            Si vous n'avez pas demandé ce code, veuillez ignorer cet email.
+                        </p>
+                    </div>
+                </body>
+            </html>
+            """
+
+            print("📨 Sending via Resend API...")
+
+            params = {
+                "from": self.sender_email,
+                "to": [recipient_email],
+                "subject": subject,
+                "html": html_content,
+            }
+
+            email = resend.Emails.send(params)
+
+            print(f"✅ Email sent successfully!")
+            print(f"📬 Message ID: {email.get('id', 'N/A')}")
+            print("=" * 60 + "\n")
+            return True
+
+        except Exception as e:
+            print("\n" + "=" * 60)
+            print("❌ RESEND API ERROR")
+            print("=" * 60)
+            print(f"Error Type: {type(e).__name__}")
+            print(f"Error Details: {str(e)}")
+            print("\n📋 TROUBLESHOOTING:")
+            print("1. Check your RESEND_API_KEY in Railway variables")
+            print("2. Verify your sender email/domain is configured in Resend")
+            print("3. Check Resend dashboard: https://resend.com/emails")
+            print("=" * 60 + "\n")
+            return False
+
+    def _send_via_smtp(self, recipient_email: str, otp_code: str, otp_type: str) -> bool:
+        """Send email via SMTP (for local development)"""
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        try:
+            print("\n" + "=" * 60)
+            print("📤 SENDING EMAIL VIA SMTP")
+            print("=" * 60)
+
             if not self.sender_email or not self.sender_password:
                 print("❌ ERROR: SENDER_EMAIL or SENDER_PASSWORD not configured")
-                print(f"   SENDER_EMAIL: {self.sender_email}")
-                print(
-                    f"   SENDER_PASSWORD: {'Set' if self.sender_password else 'Not Set'}")
                 return False
 
             print(f"📧 To: {recipient_email}")
             print(f"📧 From: {self.sender_email}")
             print(f"🔐 OTP Code: {otp_code}")
-            print(f"📝 OTP Type: {otp_type}")
             print(f"🌐 SMTP Server: {self.smtp_server}:{self.smtp_port}")
 
             subject = "Code de vérification" if otp_type == "registration" else "Réinitialisation du mot de passe"
-            print(f"📋 Subject: {subject}")
 
-            body = f"""
+            html_content = f"""
             <html>
                 <body style="font-family: Arial, sans-serif; padding: 20px;">
                     <h2>{'Vérification de votre compte' if otp_type == 'registration' else 'Réinitialisation de mot de passe'}</h2>
@@ -68,73 +160,21 @@ class EmailService:
             message["Subject"] = subject
             message["From"] = self.sender_email
             message["To"] = recipient_email
+            message.attach(MIMEText(html_content, "html"))
 
-            html_part = MIMEText(body, "html")
-            message.attach(html_part)
-
-            print("✅ Email message created successfully")
-            print(
-                f"🔌 Connecting to SMTP server: {self.smtp_server}:{self.smtp_port}...")
-
+            print("🔌 Connecting to SMTP server...")
             with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10) as server:
-                print("✅ Connected to SMTP server")
-
-                print("🔒 Starting TLS encryption...")
+                print("✅ Connected")
                 server.starttls()
-                print("✅ TLS encryption enabled")
-
-                print(f"🔑 Authenticating with email: {self.sender_email}")
-                print(
-                    f"🔑 Password length: {len(self.sender_password)} characters")
-
+                print("✅ TLS enabled")
                 server.login(self.sender_email, self.sender_password)
-                print("✅ Authentication successful!")
-
-                print("📨 Sending email...")
+                print("✅ Authenticated")
                 server.send_message(message)
                 print("✅ Email sent successfully!")
 
-            print("=" * 60)
-            print(f"✅ EMAIL SENT SUCCESSFULLY TO {recipient_email}")
             print("=" * 60 + "\n")
             return True
 
-        except smtplib.SMTPAuthenticationError as e:
-            print("\n" + "=" * 60)
-            print("❌ SMTP AUTHENTICATION ERROR")
-            print("=" * 60)
-            print(f"Error Code: {e.smtp_code}")
-            print(
-                f"Error Message: {e.smtp_error.decode() if hasattr(e.smtp_error, 'decode') else e.smtp_error}")
-            print("\n📋 TROUBLESHOOTING STEPS:")
-            print("1. ✅ Enable 2-Factor Authentication on your Google Account")
-            print("2. 🔑 Generate an App Password:")
-            print("   → Go to: https://myaccount.google.com/apppasswords")
-            print("   → Select 'Mail' and your device")
-            print("   → Copy the 16-character password")
-            print("3. 📝 Update your .env file:")
-            print(f"   SENDER_EMAIL={self.sender_email}")
-            print("   SENDER_PASSWORD=your-16-char-app-password")
-            print("4. 🔄 Restart your application")
-            print("\n⚠️  DO NOT use your regular Gmail password!")
-            print("=" * 60 + "\n")
-            return False
-
-        except smtplib.SMTPException as e:
-            print("\n" + "=" * 60)
-            print("❌ SMTP ERROR")
-            print("=" * 60)
-            print(f"Error Type: {type(e).__name__}")
-            print(f"Error Details: {str(e)}")
-            print("=" * 60 + "\n")
-            return False
-
         except Exception as e:
-            print("\n" + "=" * 60)
-            print("❌ UNEXPECTED ERROR")
-            print("=" * 60)
-            print(f"Error Type: {type(e).__name__}")
-            print(f"Error Details: {str(e)}")
-            print(f"Error Args: {e.args}")
-            print("=" * 60 + "\n")
+            print(f"\n❌ SMTP Error: {type(e).__name__}: {str(e)}\n")
             return False
