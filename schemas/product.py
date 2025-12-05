@@ -17,9 +17,8 @@ class ProductBase(BaseModel):
     @field_validator('image_urls')
     @classmethod
     def validate_images(cls, v):
-        if len(v) < 1:
-            # Updated message
-            raise ValueError('At least 1 image URL is required')
+        # REMOVED: minimum image requirement
+        # Images are now optional (can be empty list)
         if len(v) > 5:
             raise ValueError('Maximum 5 images allowed')
         return v
@@ -43,8 +42,8 @@ class ProductUpdate(BaseModel):
     @classmethod
     def validate_images(cls, v):
         if v is not None:
-            if len(v) < 1:
-                raise ValueError('At least 1 image is required')
+            # REMOVED: minimum image requirement
+            # Images are optional in updates
             if len(v) > 5:
                 raise ValueError('Maximum 5 images allowed')
         return v
