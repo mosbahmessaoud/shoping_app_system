@@ -48,21 +48,34 @@ async def upload_product_images(
                     detail=f"File {file.filename} must be an image"
                 )
 
-            # Upload to Cloudinary
-            result = cloudinary.uploader.upload(
-                file.file,
-                folder="products",
-                resource_type="image",
-                allowed_formats=["jpg", "png", "jpeg", "webp"],
-                transformation=[
-                    {'width': 1000, 'height': 1000, 'crop': 'limit'},
-                    {'quality': 'auto'},
-                    {'fetch_format': 'auto'}
-                ]
-            )
+            try:
+                # Upload to Cloudinary
+                result = cloudinary.uploader.upload(
+                    file.file,
+                    folder="products",
+                    resource_type="image",
+                    allowed_formats=["jpg", "png", "jpeg", "webp"],
+                    transformation=[
+                        {'width': 1000, 'height': 1000, 'crop': 'limit'},
+                        {'quality': 'auto'},
+                        {'fetch_format': 'auto'}
+                    ]
+                )
 
-            uploaded_urls.append(result['secure_url'])
-            uploaded_public_ids.append(result['public_id'])
+                uploaded_urls.append(result['secure_url'])
+                uploaded_public_ids.append(result['public_id'])
+            except Exception as upload_error:
+                # Cleanup uploaded images if error occurs
+                for public_id in uploaded_public_ids:
+                    try:
+                        cloudinary.uploader.destroy(public_id)
+                    except:
+                        pass
+
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Cloudinary upload failed for {file.filename}: {str(upload_error)}"
+                )
 
         return {
             "success": True,
@@ -71,6 +84,8 @@ async def upload_product_images(
             "count": len(uploaded_urls)
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         # Cleanup uploaded images if error occurs
         for public_id in uploaded_public_ids:
