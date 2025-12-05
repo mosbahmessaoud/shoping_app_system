@@ -63,7 +63,9 @@ def get_all_notifications(
 ):
     """Obtenir toutes les notifications (admin seulement)"""
 
-    query = db.query(Notification)
+    query = db.query(Notification).filter(
+        Notification.client_id == current_user.id
+    )
 
     if is_sent is not None:
         query = query.filter(Notification.is_sent == is_sent)
@@ -71,7 +73,7 @@ def get_all_notifications(
     if notification_type:
         query = query.filter(
             Notification.notification_type == notification_type,
-            Notification.client_id == current_user.id)
+        )
 
     notifications = query.order_by(
         Notification.created_at.desc()).offset(skip).limit(limit).all()
@@ -85,12 +87,14 @@ def get_all_notifications(
     limit: int = 100,
     is_sent: bool = None,
     notification_type: str = None,
-    current_user=Depends(get_current_user),  # Can be client or admin
+    current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """Obtenir toutes les notifications (admin seulement)"""
 
-    query = db.query(Notification)
+    query = db.query(Notification).filter(
+        Notification.admin_id == current_admin.id
+    )
 
     if is_sent is not None:
         query = query.filter(Notification.is_sent == is_sent)
@@ -98,7 +102,7 @@ def get_all_notifications(
     if notification_type:
         query = query.filter(
             Notification.notification_type == notification_type,
-            Notification.admin_id == current_user.id)
+        )
 
     notifications = query.order_by(
         Notification.created_at.desc()).offset(skip).limit(limit).all()
