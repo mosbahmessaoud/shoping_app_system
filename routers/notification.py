@@ -279,27 +279,6 @@ def mark_notification_sent(
     return notification
 
 
-@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_notification(
-    notification_id: int,
-    db: Session = Depends(get_db)
-):
-    """Delete notification (admin only)"""
-
-    notification = db.query(Notification).filter(
-        Notification.id == notification_id).first()
-    if not notification:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notification non trouvée"
-        )
-
-    db.delete(notification)
-    db.commit()
-
-    return None
-
-
 @router.delete("/all", status_code=status.HTTP_204_NO_CONTENT)
 def delete_all_notifications(
     current_admin=Depends(get_current_admin),
@@ -318,6 +297,27 @@ def delete_all_notifications(
 
     # Delete all notifications
     db.query(Notification).delete()
+    db.commit()
+
+    return None
+
+
+@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_notification(
+    notification_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete notification (admin only)"""
+
+    notification = db.query(Notification).filter(
+        Notification.id == notification_id).first()
+    if not notification:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification non trouvée"
+        )
+
+    db.delete(notification)
     db.commit()
 
     return None
