@@ -11,6 +11,7 @@ from models.product import Product
 import requests
 from typing import Optional
 
+
 # Configuration Email via Resend
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "resend")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
