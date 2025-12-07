@@ -8,6 +8,7 @@ class NotificationBase(BaseModel):
     channel: str = Field(..., max_length=20)  # "email" or "whatsapp"
     message: str = Field(..., max_length=1000)
 
+
 # Notification Create Schema
 class NotificationCreate(NotificationBase):
     admin_id: Optional[int] = None
