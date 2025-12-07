@@ -55,11 +55,14 @@ Client: {client.username} ({client.email})
 Téléphone: {client.phone_number or 'Non fourni'}
 Ville: {client.city or 'Non fournie'}
 
+
 Montant total: {bill.total_amount} DZD
 Statut: {bill.status}
 
 Détails de la facture:
 """
+
+
 
     # Ajouter les items de la facture
     for item in bill.bill_items:
@@ -94,6 +97,8 @@ Détails de la facture:
         #     notifications.append(whatsapp_notification)
 
     # Message pour le client
+
+
 
     client_message = f"""
 Votre facture a été créée avec succès!
