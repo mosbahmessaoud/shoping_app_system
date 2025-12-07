@@ -301,19 +301,23 @@ def delete_notification(
 
 
 @router.delete("/all", status_code=status.HTTP_204_NO_CONTENT)
-def delete_notification(
+def delete_all_notifications(
+    current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Delete notification (admin only)"""
+    """Delete all notifications (admin only)"""
 
-    notification = db.query(Notification).all()
-    if not notification:
+    # Get count before deletion for feedback
+    notification_count = db.query(Notification).count()
+
+    if notification_count == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notification non trouvée"
+            detail="Aucune notification trouvée"
         )
 
-    db.delete(notification)
+    # Delete all notifications
+    db.query(Notification).delete()
     db.commit()
 
     return None
