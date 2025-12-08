@@ -62,8 +62,6 @@ Statut: {bill.status}
 Détails de la facture:
 """
 
-
-
     # Ajouter les items de la facture
     for item in bill.bill_items:
         admin_message += f"\n- {item.product_name}: {item.quantity} x {item.unit_price} DZD = {item.subtotal} DZD"
@@ -99,31 +97,30 @@ Détails de la facture:
     # Message pour le client
 
 
+#     client_message = f"""
+# Votre facture a été créée avec succès!
 
-    client_message = f"""
-Votre facture a été créée avec succès!
+# Facture N°: {bill.bill_number}
+# Date: {bill.created_at.strftime('%d/%m/%Y %H:%M')}
 
-Facture N°: {bill.bill_number}
-Date: {bill.created_at.strftime('%d/%m/%Y %H:%M')}
+# Montant total: {bill.total_amount} DZD
+# Montant payé: {bill.total_paid} DZD
+# Montant restant: {bill.total_remaining} DZD
 
-Montant total: {bill.total_amount} DZD
-Montant payé: {bill.total_paid} DZD
-Montant restant: {bill.total_remaining} DZD
+# Merci pour votre achat!
+# """
 
-Merci pour votre achat!
-"""
-
-    # Notification email pour le client
-    if client.email:
-        client_email_notification = Notification(
-            client_id=client.id,
-            bill_id=bill.id,
-            notification_type="bill_confirmation",
-            channel="email",
-            message=client_message
-        )
-        db.add(client_email_notification)
-        notifications.append(client_email_notification)
+#     # Notification email pour le client
+#     if client.email:
+#         client_email_notification = Notification(
+#             client_id=client.id,
+#             bill_id=bill.id,
+#             notification_type="bill_confirmation",
+#             channel="email",
+#             message=client_message
+#         )
+#         db.add(client_email_notification)
+#         notifications.append(client_email_notification)
 
     db.commit()
 

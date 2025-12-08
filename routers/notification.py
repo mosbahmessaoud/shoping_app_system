@@ -9,50 +9,50 @@ from utils.auth import get_current_admin, get_current_user
 router = APIRouter(prefix="/notification", tags=["Notification"])
 
 
-@router.post("/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED)
-def create_notification(
-    notification_data: NotificationCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Create a new notification (accessible by clients and admins)"""
+# @router.post("/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED)
+# def create_notification(
+#     notification_data: NotificationCreate,
+#     db: Session = Depends(get_db),
+#     current_user=Depends(get_current_user)
+# ):
+#     """Create a new notification (accessible by clients and admins)"""
 
-    # Handle both dict and object responses from get_current_user
-    user_id = current_user.get('id') if isinstance(
-        current_user, dict) else current_user.id
-    is_client = current_user.get('username') if isinstance(
-        current_user, dict) else hasattr(current_user, 'username')
+#     # Handle both dict and object responses from get_current_user
+#     user_id = current_user.get('id') if isinstance(
+#         current_user, dict) else current_user.id
+#     is_client = current_user.get('username') if isinstance(
+#         current_user, dict) else hasattr(current_user, 'username')
 
-    # If client is creating the notification, auto-set client_id
-    if is_client and not (current_user.get('email') if isinstance(current_user, dict) else hasattr(current_user, 'email')):
-        new_notification = Notification(
-            notification_type=notification_data.notification_type,
-            channel=notification_data.channel,
-            message=notification_data.message,
-            client_id=user_id,
-            bill_id=notification_data.bill_id,
-            stock_alert_id=notification_data.stock_alert_id,
-            admin_id=notification_data.admin_id,
-            is_sent=False
-        )
-    else:
-        # Admin is creating the notification
-        new_notification = Notification(
-            notification_type=notification_data.notification_type,
-            channel=notification_data.channel,
-            message=notification_data.message,
-            admin_id=notification_data.admin_id,
-            client_id=notification_data.client_id,
-            bill_id=notification_data.bill_id,
-            stock_alert_id=notification_data.stock_alert_id,
-            is_sent=False
-        )
+#     # If client is creating the notification, auto-set client_id
+#     if is_client :
+#         new_notification = Notification(
+#             notification_type=notification_data.notification_type,
+#             channel=notification_data.channel,
+#             message=notification_data.message,
+#             client_id=user_id,
+#             bill_id=notification_data.bill_id,
+#             stock_alert_id=notification_data.stock_alert_id,
+#             admin_id=notification_data.admin_id,
+#             is_sent=False
+#         )
+#     else:
+#         # Admin is creating the notification
+#         new_notification = Notification(
+#             notification_type=notification_data.notification_type,
+#             channel=notification_data.channel,
+#             message=notification_data.message,
+#             admin_id=user_id,
+#             client_id=notification_data.client_id,
+#             bill_id=notification_data.bill_id,
+#             stock_alert_id=notification_data.stock_alert_id,
+#             is_sent=False
+#         )
 
-    db.add(new_notification)
-    db.commit()
-    db.refresh(new_notification)
+#     db.add(new_notification)
+#     db.commit()
+#     db.refresh(new_notification)
 
-    return new_notification
+#     return new_notification
 
 
 @router.get("/", response_model=List[NotificationResponse])
