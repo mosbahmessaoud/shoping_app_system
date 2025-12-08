@@ -620,54 +620,43 @@ def get_bill_by_id_admin(
         } for item in bill.bill_items]
     )
 
-
 @router.patch("/{bill_id}/correct-total-paid", response_model=BillResponse)
 def correct_bill_total_paid(
     bill_id: int,
-    new_total_paid: Decimal = Query(..., ge=0,
-                                    description="New total paid amount"),
+    new_total_paid: float = Query(..., ge=0, description="New total paid amount"),
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """Corriger le montant total payé d'une facture (admin seulement)"""
-
+    
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Facture non trouvée"
         )
-
-    if new_total_paid > bill.total_amount:
+    
+    new_total_paid_decimal = Decimal(str(new_total_paid))
+    
+    if new_total_paid_decimal > bill.total_amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Le montant payé ne peut pas dépasser le montant total de la facture"
+            detail="Le montant payé ne peut pas dépasser le montant total"
         )
-
-    # Update the payment amounts
-    bill.total_paid = new_total_paid
-    bill.total_remaining = bill.total_amount - new_total_paid
-
-    # Update status based on new amounts
+    
+    # Update amounts
+    bill.total_paid = new_total_paid_decimal
+    bill.total_remaining = bill.total_amount - new_total_paid_decimal
+    
+    # Update status
     if bill.total_remaining == Decimal('0.00'):
         bill.status = "paid"
     elif bill.total_paid > Decimal('0.00'):
         bill.status = "partial"
     else:
         bill.status = "not paid"
-
+    
     db.commit()
     db.refresh(bill)
-
-    return BillResponse(
-        id=bill.id,
-        bill_number=bill.bill_number,
-        client_id=bill.client_id,
-        total_amount=bill.total_amount,
-        total_paid=bill.total_paid,
-        total_remaining=bill.total_remaining,
-        status=bill.status,
-        created_at=bill.created_at,
-        updated_at=bill.updated_at,
-        notification_sent=bill.notification_sent
-    )
+    
+    return bill
