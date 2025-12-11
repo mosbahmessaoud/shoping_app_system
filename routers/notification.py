@@ -54,7 +54,6 @@ router = APIRouter(prefix="/notification", tags=["Notification"])
 
 #     return new_notification
 
-
 @router.get("/", response_model=List[NotificationResponse])
 def get_all_notifications(
     skip: int = 0,
@@ -66,21 +65,21 @@ def get_all_notifications(
 ):
     """Get all notifications for the current client"""
 
-    # # FIX: Handle both dict and object responses
-    # user_id = current_user.get('id') if isinstance(
-    #     current_user, dict) else current_user.id
+    # FIX: Handle both dict and object responses
+    user_id = current_user.get('id') if isinstance(
+        current_user, dict) else current_user.id
 
     query = db.query(Notification).filter(
-        Notification.client_id == current_user.id
+        Notification.client_id == user_id
     )
 
     if is_sent is not None:
-        query = query.filter(Notification.is_sent == is_sent).all()
+        query = query.filter(Notification.is_sent == is_sent)
 
     if notification_type:
         query = query.filter(
-            Notification.notification_type == notification_type,
-        ).all()
+            Notification.notification_type == notification_type
+        )
 
     notifications = query.order_by(
         Notification.created_at.desc()).offset(skip).limit(limit).all()
@@ -100,20 +99,20 @@ def get_admin_notifications(
     """Get all notifications for admin"""
 
     # Handle both dict and object responses
-    # admin_id = current_admin.get('id') if isinstance(
-    #     current_admin, dict) else current_admin.id
+    admin_id = current_admin.get('id') if isinstance(
+        current_admin, dict) else current_admin.id
 
     query = db.query(Notification).filter(
-        Notification.admin_id == current_admin.id
+        Notification.admin_id == admin_id
     )
 
     if is_sent is not None:
-        query = query.filter(Notification.is_sent == is_sent).all()
+        query = query.filter(Notification.is_sent == is_sent)
 
     if notification_type:
         query = query.filter(
-            Notification.notification_type == notification_type,
-        ).all()
+            Notification.notification_type == notification_type
+        )
 
     notifications = query.order_by(
         Notification.created_at.desc()).offset(skip).limit(limit).all()
