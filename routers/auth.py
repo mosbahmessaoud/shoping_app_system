@@ -1,32 +1,38 @@
-
-
-from http.client import HTTPException
-from sys import prefix
-from fastapi import APIRouter, Depends, FastAPI, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
-from models.admin import Admin
+from pydantic import BaseModel
 from models.client import Client
-from routers.admin import login_admin
-from schemas.admin import AdminLogin
+from models.admin import Admin
 from utils.db import get_db
-from utils.auth import verify_password
-
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-@router.post("/type_user", response_model=str)
-def get_user_type(data: AdminLogin, db: Session = Depends(get_db)):
-    admin = db.query(Admin).filter(Admin.email == data.email).first()
-    client = db.query(Client).filter(Client.email == data.email).first()
+class UserTypeRequest(BaseModel):
+    email: str
 
+
+class UserTypeResponse(BaseModel):
+    user_type: str
+    exists: bool
+
+
+@router.post("/type_user", response_model=UserTypeResponse)
+def get_user_type(request: UserTypeRequest, db: Session = Depends(get_db)):
+    """Determine if email exists and what type of user it is"""
+
+    # Check if email exists in Client table
+    client = db.query(Client).filter(Client.email == request.email).first()
+    if client:
+        return UserTypeResponse(user_type="client", exists=True)
+
+    # Check if email exists in Admin table
+    admin = db.query(Admin).filter(Admin.email == request.email).first()
     if admin:
-        return "admin"
-    elif client:
-        return "client"
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email ou mot de passe incorrect"
-        )
+        return UserTypeResponse(user_type="admin", exists=True)
+
+    # Email doesn't exist - raise 404 error
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Aucun compte n'existe avec cet email"
+    )
