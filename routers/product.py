@@ -235,7 +235,7 @@ def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
 #     check_and_create_stock_alert(db, product)
 
 #     return _format_product_response(product)
-@router.put("/{product_id}", response_model=ProductResponse,  
+@router.put("/{product_id}", response_model=ProductResponse,
             dependencies=[Depends(get_current_admin)])
 def update_product(
     product_id: int,
@@ -244,7 +244,7 @@ def update_product(
     db: Session = Depends(get_db)
 ):
     """Update product (admin only)"""
-    
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(
@@ -263,30 +263,31 @@ def update_product(
             )
 
     update_data = product_data.dict(exclude_unset=True)
-    
+
     # Handle image updates: delete old images that are being replaced
     if 'image_urls' in update_data:
         old_urls = json.loads(product.image_urls) if product.image_urls else []
         new_urls = update_data['image_urls']
-        
+
         # Find images that are being removed
         urls_to_delete = [url for url in old_urls if url not in new_urls]
-        
+
         if urls_to_delete:
             deletion_result = delete_cloudinary_images(urls_to_delete)
             # Log failures
             if deletion_result['failed']:
-                print(f"Failed to delete old images: {deletion_result['failed']}")
-        
+                print(
+                    f"Failed to delete old images: {deletion_result['failed']}")
+
         update_data['image_urls'] = json.dumps(new_urls)
-    
+
     for field, value in update_data.items():
         setattr(product, field, value)
 
     db.commit()
     db.refresh(product)
     check_and_create_stock_alert(db, product)
-    
+
     return _format_product_response(product)
 
 
@@ -340,7 +341,7 @@ def update_product_stock(
 #     db.commit()
 #     return None
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT, 
+@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(get_current_admin)])
 def delete_product(
     product_id: int,
@@ -348,7 +349,7 @@ def delete_product(
     db: Session = Depends(get_db)
 ):
     """Delete product and its images from Cloudinary (admin only)"""
-    
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(
@@ -388,9 +389,7 @@ def _format_product_response(product: Product) -> ProductResponse:
     )
 
 
-
-
-### new endpoint to delete a specific image from a product
+# new endpoint to delete a specific image from a product
 
 @router.delete("/{product_id}/images", response_model=ProductResponse,
                dependencies=[Depends(get_current_admin)])
@@ -401,38 +400,38 @@ def delete_product_image(
     db: Session = Depends(get_db)
 ):
     """Delete specific image from product (admin only)"""
-    
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found"
         )
-    
+
     # Get current images
     current_urls = json.loads(product.image_urls) if product.image_urls else []
-    
+
     # Check if image exists
     if image_url not in current_urls:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Image not found in product"
         )
-    
+
     # Delete from Cloudinary
     deletion_result = delete_cloudinary_images([image_url])
-    
+
     if deletion_result['failed']:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete image from Cloudinary: {deletion_result['failed']}"
         )
-    
+
     # Remove from product
     current_urls.remove(image_url)
     product.image_urls = json.dumps(current_urls)
-    
+
     db.commit()
     db.refresh(product)
-    
+
     return _format_product_response(product)
