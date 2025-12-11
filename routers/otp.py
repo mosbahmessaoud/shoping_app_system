@@ -49,6 +49,16 @@ def send_otp(otp_request: OTPRequest, db: Session = Depends(get_db)):
             )
         print("✅ Account found for password reset")
 
+    elif otp_request.otp_type == "email_update":
+        # For email update, we need to check if the NEW email is already used by another account
+        if client or admin:
+            print("❌ Email update failed: New email already exists")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cet email est déjà utilisé par un autre compte"
+            )
+        print("✅ New email available for update")
+
     else:
         print(f"❌ Invalid OTP type: {otp_request.otp_type}")
         raise HTTPException(
