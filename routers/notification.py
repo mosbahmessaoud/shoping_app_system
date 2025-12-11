@@ -72,7 +72,8 @@ def get_all_notifications(
     # Only get notifications where client_id matches AND client_id is not NULL
     query = db.query(Notification).filter(
         Notification.client_id == user_id,
-        Notification.client_id.isnot(None)
+        Notification.client_id.isnot(None),
+        Notification.admin_id == 1,
     )
 
     if is_sent is not None:
