@@ -69,8 +69,10 @@ def get_all_notifications(
     user_id = current_user.get('id') if isinstance(
         current_user, dict) else current_user.id
 
+    # Only get notifications where client_id matches AND client_id is not NULL
     query = db.query(Notification).filter(
-        Notification.client_id == user_id
+        Notification.client_id == user_id,
+        Notification.client_id.isnot(None)
     )
 
     if is_sent is not None:
