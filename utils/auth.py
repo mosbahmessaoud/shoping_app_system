@@ -101,7 +101,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
 
-    return {"user": user, "type": user_type}
+    return {"user": user, "type": user_type, "id": user_id}
 
 
 def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Admin:
