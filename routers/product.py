@@ -17,6 +17,8 @@ from utils.stock_manager import check_and_create_stock_alert
 import cloudinary.uploader
 import re
 
+from datetime import datetime, timedelta
+from sqlalchemy import func, extract
 
 router = APIRouter(prefix="/product", tags=["Product"])
 
@@ -55,6 +57,7 @@ def delete_cloudinary_images(image_urls: List[str]) -> dict:
     return {"deleted": deleted, "failed": failed}
 
 
+# Update the create_product endpoint to handle barcode
 @router.post("/", response_model=ProductResponse,
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(get_current_admin)])
@@ -74,6 +77,17 @@ def create_product(
             detail="Category not found"
         )
 
+    # Check if barcode already exists
+    if product_data.barcode:
+        existing_product = db.query(Product).filter(
+            Product.barcode == product_data.barcode
+        ).first()
+        if existing_product:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Barcode already exists for product: {existing_product.name}"
+            )
+
     product_dict = product_data.dict(exclude={'category_id', 'image_urls'})
     new_product = Product(
         **product_dict,
@@ -88,6 +102,41 @@ def create_product(
     check_and_create_stock_alert(db, new_product)
 
     return _format_product_response(new_product)
+
+
+# @router.post("/", response_model=ProductResponse,
+#              status_code=status.HTTP_201_CREATED,
+#              dependencies=[Depends(get_current_admin)])
+# def create_product(
+#     product_data: ProductCreate,
+#     current_admin=Depends(get_current_admin),
+#     db: Session = Depends(get_db)
+# ):
+#     """Create a new product (admin only)"""
+
+#     category = db.query(Category).filter(
+#         Category.id == product_data.category_id
+#     ).first()
+#     if not category:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Category not found"
+#         )
+
+#     product_dict = product_data.dict(exclude={'category_id', 'image_urls'})
+#     new_product = Product(
+#         **product_dict,
+#         category_id=product_data.category_id,
+#         admin_id=current_admin.id,
+#         image_urls=json.dumps(product_data.image_urls)
+#     )
+
+#     db.add(new_product)
+#     db.commit()
+#     db.refresh(new_product)
+#     check_and_create_stock_alert(db, new_product)
+
+#     return _format_product_response(new_product)
 
 
 @router.get("/count", response_model=ProductCount)
@@ -128,6 +177,8 @@ def get_all_products(
             image_urls=json.loads(p.image_urls) if p.image_urls else [],
             category_id=p.category_id,
             admin_id=p.admin_id,
+            barcode=p.barcode,  # NEW
+
             is_active=p.is_active,
             created_at=p.created_at,
             updated_at=p.updated_at,
@@ -188,6 +239,7 @@ def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
             product.image_urls) if product.image_urls else [],
         category_id=product.category_id,
         admin_id=product.admin_id,
+        barcode=product.barcode,
         is_active=product.is_active,
         created_at=product.created_at,
         updated_at=product.updated_at,
@@ -370,6 +422,7 @@ def delete_product(
     return None
 
 
+# Update _format_product_response to include barcode
 def _format_product_response(product: Product) -> ProductResponse:
     """Helper to format product response with parsed image URLs"""
     return ProductResponse(
@@ -383,10 +436,29 @@ def _format_product_response(product: Product) -> ProductResponse:
             product.image_urls) if product.image_urls else [],
         category_id=product.category_id,
         admin_id=product.admin_id,
+        barcode=product.barcode,  # NEW
         is_active=product.is_active,
         created_at=product.created_at,
         updated_at=product.updated_at
     )
+
+# def _format_product_response(product: Product) -> ProductResponse:
+#     """Helper to format product response with parsed image URLs"""
+#     return ProductResponse(
+#         id=product.id,
+#         name=product.name,
+#         description=product.description,
+#         price=product.price,
+#         quantity_in_stock=product.quantity_in_stock,
+#         minimum_stock_level=product.minimum_stock_level,
+#         image_urls=json.loads(
+#             product.image_urls) if product.image_urls else [],
+#         category_id=product.category_id,
+#         admin_id=product.admin_id,
+#         is_active=product.is_active,
+#         created_at=product.created_at,
+#         updated_at=product.updated_at
+#     )
 
 
 # new endpoint to delete a specific image from a product
@@ -493,69 +565,65 @@ def generate_barcode(db: Session = Depends(get_db)):
             return {"barcode": barcode}
 
 
-# Update the create_product endpoint to handle barcode
-@router.post("/", response_model=ProductResponse,
-             status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(get_current_admin)])
-def create_product(
-    product_data: ProductCreate,
+@router.get("/{product_id}/statistics", response_model=dict,
+            dependencies=[Depends(get_current_admin)])
+def get_product_statistics(
+    product_id: int,
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Create a new product (admin only)"""
+    """Get product sales statistics (admin only)"""
+    from models.bill_item import BillItem
+    from models.bill import Bill
 
-    category = db.query(Category).filter(
-        Category.id == product_data.category_id
-    ).first()
-    if not category:
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Category not found"
+            detail="Product not found"
         )
 
-    # Check if barcode already exists
-    if product_data.barcode:
-        existing_product = db.query(Product).filter(
-            Product.barcode == product_data.barcode
-        ).first()
-        if existing_product:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Barcode already exists for product: {existing_product.name}"
-            )
+    now = datetime.now()
+    today_start = datetime(now.year, now.month, now.day)
+    month_start = datetime(now.year, now.month, 1)
+    year_start = datetime(now.year, 1, 1)
 
-    product_dict = product_data.dict(exclude={'category_id', 'image_urls'})
-    new_product = Product(
-        **product_dict,
-        category_id=product_data.category_id,
-        admin_id=current_admin.id,
-        image_urls=json.dumps(product_data.image_urls)
-    )
+    # Daily sales
+    daily = db.query(
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= today_start
+    ).first()
 
-    db.add(new_product)
-    db.commit()
-    db.refresh(new_product)
-    check_and_create_stock_alert(db, new_product)
+    # Monthly sales
+    monthly = db.query(
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= month_start
+    ).first()
 
-    return _format_product_response(new_product)
+    # Yearly sales
+    yearly = db.query(
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= year_start
+    ).first()
 
-
-# Update _format_product_response to include barcode
-def _format_product_response(product: Product) -> ProductResponse:
-    """Helper to format product response with parsed image URLs"""
-    return ProductResponse(
-        id=product.id,
-        name=product.name,
-        description=product.description,
-        price=product.price,
-        quantity_in_stock=product.quantity_in_stock,
-        minimum_stock_level=product.minimum_stock_level,
-        image_urls=json.loads(
-            product.image_urls) if product.image_urls else [],
-        category_id=product.category_id,
-        admin_id=product.admin_id,
-        barcode=product.barcode,  # NEW
-        is_active=product.is_active,
-        created_at=product.created_at,
-        updated_at=product.updated_at
-    )
+    return {
+        'product_id': product_id,
+        'product_name': product.name,
+        'daily_sales': int(daily.quantity or 0),
+        'daily_revenue': float(daily.revenue or 0),
+        'monthly_sales': int(monthly.quantity or 0),
+        'monthly_revenue': float(monthly.revenue or 0),
+        'yearly_sales': int(yearly.quantity or 0),
+        'yearly_revenue': float(yearly.revenue or 0),
+        'current_stock': product.quantity_in_stock,
+        'stock_value': float(product.price * product.quantity_in_stock),
+    }
