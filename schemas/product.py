@@ -12,15 +12,29 @@ class ProductBase(BaseModel):
     minimum_stock_level: int = Field(default=10, ge=0)
     image_urls: List[str] = Field(default=[], max_length=5)
     category_id: int
+    barcode: Optional[str] = Field(
+        None, max_length=100)  # NEW: Optional barcode
     is_active: bool = True
 
     @field_validator('image_urls')
     @classmethod
     def validate_images(cls, v):
-        # REMOVED: minimum image requirement
-        # Images are now optional (can be empty list)
         if len(v) > 5:
             raise ValueError('Maximum 5 images allowed')
+        return v
+
+    @field_validator('barcode')
+    @classmethod
+    def validate_barcode(cls, v):
+        if v is not None:
+            # Remove whitespace
+            v = v.strip()
+            if v == '':
+                return None
+            # Validate length (most barcodes are 8-14 digits)
+            if len(v) < 6 or len(v) > 100:
+                raise ValueError(
+                    'Barcode must be between 6 and 100 characters')
         return v
 
 
@@ -36,16 +50,26 @@ class ProductUpdate(BaseModel):
     minimum_stock_level: Optional[int] = Field(None, ge=0)
     image_urls: Optional[List[str]] = Field(None, max_length=5)
     category_id: Optional[int] = None
+    barcode: Optional[str] = Field(None, max_length=100)  # NEW
     is_active: Optional[bool] = None
 
     @field_validator('image_urls')
     @classmethod
     def validate_images(cls, v):
+        if v is not None and len(v) > 5:
+            raise ValueError('Maximum 5 images allowed')
+        return v
+
+    @field_validator('barcode')
+    @classmethod
+    def validate_barcode(cls, v):
         if v is not None:
-            # REMOVED: minimum image requirement
-            # Images are optional in updates
-            if len(v) > 5:
-                raise ValueError('Maximum 5 images allowed')
+            v = v.strip()
+            if v == '':
+                return None
+            if len(v) < 6 or len(v) > 100:
+                raise ValueError(
+                    'Barcode must be between 6 and 100 characters')
         return v
 
 

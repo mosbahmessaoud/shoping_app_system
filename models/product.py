@@ -15,6 +15,8 @@ class Product(Base):
     quantity_in_stock = Column(Integer, nullable=False, default=0)
     minimum_stock_level = Column(Integer, nullable=False, default=10)
     
+    barcode = Column(String(100), nullable=True, unique=True, index=True)
+
     # Store images as JSON array
     image_urls = Column(String(2500), nullable=True)  # JSON string of URLs
     

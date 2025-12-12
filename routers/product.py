@@ -435,3 +435,127 @@ def delete_product_image(
     db.refresh(product)
 
     return _format_product_response(product)
+
+
+# barcode
+# Add these new endpoints to your existing product router
+
+@router.get("/barcode/{barcode}", response_model=ProductWithCategory)
+def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
+    """Get product by barcode"""
+
+    product = db.query(Product).filter(Product.barcode == barcode).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found with this barcode"
+        )
+
+    return ProductWithCategory(
+        id=product.id,
+        name=product.name,
+        description=product.description,
+        price=product.price,
+        quantity_in_stock=product.quantity_in_stock,
+        minimum_stock_level=product.minimum_stock_level,
+        image_urls=json.loads(
+            product.image_urls) if product.image_urls else [],
+        category_id=product.category_id,
+        admin_id=product.admin_id,
+        barcode=product.barcode,
+        is_active=product.is_active,
+        created_at=product.created_at,
+        updated_at=product.updated_at,
+        category_name=product.category.name
+    )
+
+
+@router.post("/generate-barcode", response_model=dict)
+def generate_barcode(db: Session = Depends(get_db)):
+    """Generate a unique EAN-13 barcode for a new product"""
+    import random
+
+    while True:
+        # Generate 12 random digits
+        barcode_base = ''.join([str(random.randint(0, 9)) for _ in range(12)])
+
+        # Calculate EAN-13 check digit
+        odd_sum = sum(int(barcode_base[i]) for i in range(0, 12, 2))
+        even_sum = sum(int(barcode_base[i]) for i in range(1, 12, 2))
+        total = odd_sum + (even_sum * 3)
+        check_digit = (10 - (total % 10)) % 10
+
+        barcode = barcode_base + str(check_digit)
+
+        # Check if barcode already exists
+        existing = db.query(Product).filter(Product.barcode == barcode).first()
+        if not existing:
+            return {"barcode": barcode}
+
+
+# Update the create_product endpoint to handle barcode
+@router.post("/", response_model=ProductResponse,
+             status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(get_current_admin)])
+def create_product(
+    product_data: ProductCreate,
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Create a new product (admin only)"""
+
+    category = db.query(Category).filter(
+        Category.id == product_data.category_id
+    ).first()
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Category not found"
+        )
+
+    # Check if barcode already exists
+    if product_data.barcode:
+        existing_product = db.query(Product).filter(
+            Product.barcode == product_data.barcode
+        ).first()
+        if existing_product:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Barcode already exists for product: {existing_product.name}"
+            )
+
+    product_dict = product_data.dict(exclude={'category_id', 'image_urls'})
+    new_product = Product(
+        **product_dict,
+        category_id=product_data.category_id,
+        admin_id=current_admin.id,
+        image_urls=json.dumps(product_data.image_urls)
+    )
+
+    db.add(new_product)
+    db.commit()
+    db.refresh(new_product)
+    check_and_create_stock_alert(db, new_product)
+
+    return _format_product_response(new_product)
+
+
+# Update _format_product_response to include barcode
+def _format_product_response(product: Product) -> ProductResponse:
+    """Helper to format product response with parsed image URLs"""
+    return ProductResponse(
+        id=product.id,
+        name=product.name,
+        description=product.description,
+        price=product.price,
+        quantity_in_stock=product.quantity_in_stock,
+        minimum_stock_level=product.minimum_stock_level,
+        image_urls=json.loads(
+            product.image_urls) if product.image_urls else [],
+        category_id=product.category_id,
+        admin_id=product.admin_id,
+        barcode=product.barcode,  # NEW
+        is_active=product.is_active,
+        created_at=product.created_at,
+        updated_at=product.updated_at
+    )
