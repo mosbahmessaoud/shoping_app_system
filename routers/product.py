@@ -627,3 +627,125 @@ def get_product_statistics(
         'current_stock': product.quantity_in_stock,
         'stock_value': float(product.price * product.quantity_in_stock),
     }
+
+
+@router.get("/{product_id}/statistics/detailed", response_model=dict,
+            dependencies=[Depends(get_current_admin)])
+def get_product_detailed_statistics(
+    product_id: int,
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get detailed product sales statistics with hourly/daily/monthly breakdown (admin only)"""
+    from models.bill_item import BillItem
+    from models.bill import Bill
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+
+    now = datetime.now()
+    today_start = datetime(now.year, now.month, now.day)
+    month_start = datetime(now.year, now.month, 1)
+    year_start = datetime(now.year, 1, 1)
+
+    # Today's sales by hour
+    today_sales = db.query(
+        extract('hour', Bill.created_at).label('hour'),
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= today_start
+    ).group_by('hour').all()
+
+    # Month's sales by day
+    month_sales = db.query(
+        extract('day', Bill.created_at).label('day'),
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= month_start
+    ).group_by('day').all()
+
+    # Year's sales by month
+    year_sales = db.query(
+        extract('month', Bill.created_at).label('month'),
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= year_start
+    ).group_by('month').all()
+
+    # Calculate totals
+    daily_total = db.query(
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= today_start
+    ).first()
+
+    monthly_total = db.query(
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= month_start
+    ).first()
+
+    yearly_total = db.query(
+        func.sum(BillItem.quantity).label('quantity'),
+        func.sum(BillItem.subtotal).label('revenue')
+    ).join(Bill).filter(
+        BillItem.product_id == product_id,
+        Bill.created_at >= year_start
+    ).first()
+
+    return {
+        'product_id': product_id,
+        'product_name': product.name,
+        'today': {
+            'total_quantity': int(daily_total.quantity or 0),
+            'total_revenue': float(daily_total.revenue or 0),
+            'data': [
+                {
+                    'hour': int(item.hour),
+                    'quantity': int(item.quantity or 0),
+                    'revenue': float(item.revenue or 0)
+                }
+                for item in today_sales
+            ]
+        },
+        'month': {
+            'total_quantity': int(monthly_total.quantity or 0),
+            'total_revenue': float(monthly_total.revenue or 0),
+            'data': [
+                {
+                    'day': int(item.day),
+                    'quantity': int(item.quantity or 0),
+                    'revenue': float(item.revenue or 0)
+                }
+                for item in month_sales
+            ]
+        },
+        'year': {
+            'total_quantity': int(yearly_total.quantity or 0),
+            'total_revenue': float(yearly_total.revenue or 0),
+            'data': [
+                {
+                    'month': int(item.month),
+                    'quantity': int(item.quantity or 0),
+                    'revenue': float(item.revenue or 0)
+                }
+                for item in year_sales
+            ]
+        },
+        'current_stock': product.quantity_in_stock,
+        'stock_value': float(product.price * product.quantity_in_stock),
+    }
