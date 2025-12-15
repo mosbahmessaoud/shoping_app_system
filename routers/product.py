@@ -749,3 +749,88 @@ def get_product_detailed_statistics(
         'current_stock': product.quantity_in_stock,
         'stock_value': float(product.price * product.quantity_in_stock),
     }
+
+
+@router.get("/{product_id}/purchases/timeline", response_model=dict,
+            dependencies=[Depends(get_current_admin)])
+def get_product_purchases_timeline(
+    product_id: int,
+    period: str = 'week',  # 'week', 'month', 'year'
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get product purchase count timeline (admin only)"""
+    from models.bill_item import BillItem
+    from models.bill import Bill
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+
+    now = datetime.now()
+
+    if period == 'week':
+        start_date = now - timedelta(days=6)
+        results = db.query(
+            func.date(Bill.created_at).label('date'),
+            func.count(BillItem.id).label('purchases')
+        ).join(Bill).filter(
+            BillItem.product_id == product_id,
+            Bill.created_at >= start_date
+        ).group_by(func.date(Bill.created_at)).all()
+
+        return {
+            'period': period,
+            'data': [
+                {
+                    'date': str(item.date),
+                    'purchases': int(item.purchases)
+                }
+                for item in results
+            ]
+        }
+
+    elif period == 'month':
+        start_date = datetime(now.year, now.month, 1)
+        results = db.query(
+            func.date(Bill.created_at).label('date'),
+            func.count(BillItem.id).label('purchases')
+        ).join(Bill).filter(
+            BillItem.product_id == product_id,
+            Bill.created_at >= start_date
+        ).group_by(func.date(Bill.created_at)).all()
+
+        return {
+            'period': period,
+            'data': [
+                {
+                    'date': str(item.date),
+                    'purchases': int(item.purchases)
+                }
+                for item in results
+            ]
+        }
+
+    elif period == 'year':
+        start_date = datetime(now.year, 1, 1)
+        results = db.query(
+            extract('month', Bill.created_at).label('month'),
+            func.count(BillItem.id).label('purchases')
+        ).join(Bill).filter(
+            BillItem.product_id == product_id,
+            Bill.created_at >= start_date
+        ).group_by('month').all()
+
+        return {
+            'period': period,
+            'data': [
+                {
+                    'month': int(item.month),
+                    'purchases': int(item.purchases)
+                }
+                for item in results
+            ]
+        }
