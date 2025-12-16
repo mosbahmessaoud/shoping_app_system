@@ -144,14 +144,19 @@ def get_notification_summary(
 ):
     """Get notification summary (admin only)"""
 
-    total_notifications = db.query(Notification).count()
+    total_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1).count()
     sent_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
         Notification.is_sent == True).count()
     pending_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
         Notification.is_sent == False).count()
     email_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
         Notification.channel == "email").count()
     whatsapp_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
         Notification.channel == "whatsapp").count()
 
     return NotificationSummary(
