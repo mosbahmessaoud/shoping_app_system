@@ -620,34 +620,36 @@ def get_bill_by_id_admin(
         } for item in bill.bill_items]
     )
 
+
 @router.patch("/{bill_id}/correct-total-paid", response_model=BillResponse)
 def correct_bill_total_paid(
     bill_id: int,
-    new_total_paid: float = Query(..., ge=0, description="New total paid amount"),
+    new_total_paid: float = Query(..., ge=0,
+                                  description="New total paid amount"),
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """Corriger le montant total payé d'une facture (admin seulement)"""
-    
+
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Facture non trouvée"
         )
-    
+
     new_total_paid_decimal = Decimal(str(new_total_paid))
-    
+
     if new_total_paid_decimal > bill.total_amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Le montant payé ne peut pas dépasser le montant total"
         )
-    
+
     # Update amounts
     bill.total_paid = new_total_paid_decimal
     bill.total_remaining = bill.total_amount - new_total_paid_decimal
-    
+
     # Update status
     if bill.total_remaining == Decimal('0.00'):
         bill.status = "paid"
@@ -655,8 +657,56 @@ def correct_bill_total_paid(
         bill.status = "partial"
     else:
         bill.status = "not paid"
-    
+
     db.commit()
     db.refresh(bill)
-    
+
     return bill
+
+
+@router.get("/statistics/daily-hourly", response_model=List[dict])
+def get_daily_hourly_summary(
+    date: str,  # Format: YYYY-MM-DD
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get hourly bill summary for a specific day (admin only)"""
+    try:
+        target_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+
+    # Query bills for the specific day grouped by hour
+    results = db.query(
+        extract('hour', Bill.created_at).label('hour'),
+        func.count(Bill.id).label('total_bills'),
+        func.sum(Bill.total_amount).label('total_revenue'),
+        func.sum(Bill.total_paid).label('total_paid'),
+        func.sum(Bill.total_remaining).label('total_pending')
+    ).filter(
+        func.date(Bill.created_at) == target_date
+    ).group_by('hour').all()
+
+    # Format the response with all 24 hours
+    hourly_data = {int(r.hour): {
+        'hour': int(r.hour),
+        'total_bills': int(r.total_bills or 0),
+        'total_revenue': float(r.total_revenue or 0),
+        'total_paid': float(r.total_paid or 0),
+        'total_pending': float(r.total_pending or 0)
+    } for r in results}
+
+    # Fill in missing hours with zeros
+    return [
+        hourly_data.get(hour, {
+            'hour': hour,
+            'total_bills': 0,
+            'total_revenue': 0.0,
+            'total_paid': 0.0,
+            'total_pending': 0.0
+        })
+        for hour in range(24)
+    ]
