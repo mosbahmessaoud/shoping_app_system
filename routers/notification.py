@@ -356,3 +356,36 @@ def send_pending_notifications(
         "message": f"{sent_count} notification(s) envoyée(s) avec succès",
         "count": sent_count
     }
+
+
+# admin crat notification to the client 
+
+@router.post("/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED)
+def create_notification(
+    notification_data: NotificationCreate,
+    db: Session = Depends(get_db),
+    current_admin=Depends(get_current_admin)
+):
+    """Create a new notification (admin only)"""
+
+    # Handle both dict and object responses from get_current_admin
+    admin_id = current_admin.get('id') if isinstance(
+        current_admin, dict) else current_admin.id
+
+    # Admin is creating the notification
+    new_notification = Notification(
+        notification_type=notification_data.notification_type,
+        channel=notification_data.channel,
+        message=notification_data.message,
+        admin_id=admin_id,
+        client_id=notification_data.client_id,
+        bill_id=notification_data.bill_id,
+        stock_alert_id=notification_data.stock_alert_id,
+        is_sent=False
+    )
+
+    db.add(new_notification)
+    db.commit()
+    db.refresh(new_notification)
+
+    return new_notification
