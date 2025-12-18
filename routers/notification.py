@@ -109,7 +109,7 @@ def get_admin_notifications(
 
     query = db.query(Notification).filter(
         Notification.admin_id == admin_id,
-        Notification.notification_type != "payment_received",
+        Notification.notification_type != "payment",
     )
 
     if is_sent is not None:
