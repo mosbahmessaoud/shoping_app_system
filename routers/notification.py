@@ -74,6 +74,8 @@ def get_all_notifications(
         Notification.client_id == user_id,
         Notification.client_id.isnot(None),
         Notification.admin_id == 1,
+        Notification.notification_type != "new_bill",
+        Notification.notification_type != "stock_alert"
     )
 
     if is_sent is not None:
@@ -106,7 +108,8 @@ def get_admin_notifications(
         current_admin, dict) else current_admin.id
 
     query = db.query(Notification).filter(
-        Notification.admin_id == admin_id
+        Notification.admin_id == admin_id,
+        Notification.notification_type != "payment_received",
     )
 
     if is_sent is not None:
@@ -358,7 +361,7 @@ def send_pending_notifications(
     }
 
 
-# admin crat notification to the client 
+# admin crat notification to the client
 
 @router.post("/", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED)
 def create_notification(
