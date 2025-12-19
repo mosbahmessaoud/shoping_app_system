@@ -148,19 +148,66 @@ def get_notification_summary(
     """Get notification summary (admin only)"""
 
     total_notifications = db.query(Notification).filter(
-        Notification.admin_id == 1).count()
+        Notification.admin_id == 1,
+        Notification.notification_type != "new_bill",
+        Notification.notification_type != "stock_alert").count()
     sent_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
-        Notification.is_sent == True).count()
+        Notification.is_sent == True,
+        Notification.notification_type != "new_bill",
+        Notification.notification_type != "stock_alert").count()
     pending_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
-        Notification.is_sent == False).count()
+        Notification.is_sent == False,
+        Notification.notification_type != "new_bill",
+        Notification.notification_type != "stock_alert").count()
     email_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
-        Notification.channel == "email").count()
+        Notification.channel == "email",
+        Notification.notification_type != "new_bill",
+        Notification.notification_type != "stock_alert").count()
     whatsapp_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
-        Notification.channel == "whatsapp").count()
+        Notification.channel == "whatsapp",
+        Notification.notification_type != "new_bill",
+        Notification.notification_type != "stock_alert").count()
+
+    return NotificationSummary(
+        total_notifications=total_notifications,
+        sent_notifications=sent_notifications,
+        pending_notifications=pending_notifications,
+        email_notifications=email_notifications,
+        whatsapp_notifications=whatsapp_notifications
+    )
+
+
+@router.get("/summary/admin", response_model=NotificationSummary)
+def get_notification_summary(
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get notification summary (admin only)"""
+
+    total_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
+        Notification.notification_type != "payment",
+    ).count()
+    sent_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
+        Notification.is_sent == True,
+        Notification.notification_type != "payment").count()
+    pending_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
+        Notification.is_sent == False,
+        Notification.notification_type != "payment").count()
+    email_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
+        Notification.channel == "email",
+        Notification.notification_type != "payment").count()
+    whatsapp_notifications = db.query(Notification).filter(
+        Notification.admin_id == 1,
+        Notification.channel == "whatsapp",
+        Notification.notification_type != "payment").count()
 
     return NotificationSummary(
         total_notifications=total_notifications,
