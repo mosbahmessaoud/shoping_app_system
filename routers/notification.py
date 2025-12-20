@@ -344,9 +344,12 @@ def delete_all_notifications(
 ):
     """Delete all notifications (client only)"""
 
+    # Extract user_id from the dictionary
+    user_id = current["id"]
+
     # Get count before deletion for feedback
     notification_count = db.query(Notification).filter(
-        Notification.client_id == current.id,
+        Notification.client_id == user_id,
         Notification.notification_type == "payment"
 
     ).count()
