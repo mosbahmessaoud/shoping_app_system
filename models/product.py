@@ -25,7 +25,7 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True)
 
-    is_sold = Column(Boolean, default=False)
+    is_sold = Column(Boolean, default=False) # new 
 
     # Relationships
     category = relationship("Category", back_populates="products")
