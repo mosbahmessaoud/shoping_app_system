@@ -354,7 +354,7 @@ def delete_all_notifications(
 
     ).count()
     notifications = db.query(Notification).filter(
-        Notification.client_id == current.id,
+        Notification.client_id == user_id,
         Notification.notification_type == "payment"
 
     ).all()
