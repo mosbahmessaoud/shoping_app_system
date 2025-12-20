@@ -15,6 +15,7 @@ class ProductBase(BaseModel):
     barcode: Optional[str] = Field(
         None, max_length=100)  # NEW: Optional barcode
     is_active: bool = True
+    is_sold: bool = False 
 
     @field_validator('image_urls')
     @classmethod
@@ -52,6 +53,7 @@ class ProductUpdate(BaseModel):
     category_id: Optional[int] = None
     barcode: Optional[str] = Field(None, max_length=100)  # NEW
     is_active: Optional[bool] = None
+    is_sold: Optional[bool] = None
 
     @field_validator('image_urls')
     @classmethod

@@ -178,6 +178,7 @@ def get_all_products(
             category_id=p.category_id,
             admin_id=p.admin_id,
             barcode=p.barcode,  # NEW
+            is_sold=p.is_sold,  # NEW
 
             is_active=p.is_active,
             created_at=p.created_at,
@@ -240,6 +241,7 @@ def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
         category_id=product.category_id,
         admin_id=product.admin_id,
         barcode=product.barcode,
+        is_sold=product.is_sold,
         is_active=product.is_active,
         created_at=product.created_at,
         updated_at=product.updated_at,
@@ -437,6 +439,7 @@ def _format_product_response(product: Product) -> ProductResponse:
         category_id=product.category_id,
         admin_id=product.admin_id,
         barcode=product.barcode,  # NEW
+        is_sold=product.is_sold,  # NEW
         is_active=product.is_active,
         created_at=product.created_at,
         updated_at=product.updated_at
@@ -535,6 +538,7 @@ def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
         category_id=product.category_id,
         admin_id=product.admin_id,
         barcode=product.barcode,
+        is_sold=product.is_sold,
         is_active=product.is_active,
         created_at=product.created_at,
         updated_at=product.updated_at,
