@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from models import notification
 from models.notification import Notification
 from schemas.notification import NotificationCreate, NotificationResponse, NotificationSummary
 from utils.db import get_db
@@ -338,22 +339,62 @@ def mark_notification_sent(
 
 @router.delete("/all", status_code=status.HTTP_204_NO_CONTENT)
 def delete_all_notifications(
-    current_admin=Depends(get_current_admin),
+    current=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete all notifications (admin only)"""
+    """Delete all notifications (client only)"""
 
     # Get count before deletion for feedback
-    notification_count = db.query(Notification).count()
+    notification_count = db.query(Notification).filter(
+        Notification.client_id == current.id,
+        Notification.notification_type == "payment"
+
+    ).count()
+    notifications = db.query(Notification).filter(
+        Notification.client_id == current.id,
+        Notification.notification_type == "payment"
+
+    ).all()
 
     if notification_count == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Aucune notification trouvée"
         )
+    else:
+        for notification in notifications:
+            db.delete(notification)
+
+    db.commit()
+
+    return None
+
+
+@router.delete("/all/admin", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_notifications(
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete all notifications (admin only)"""
+
+    # Get count before deletion for feedback
+    notification_count = db.query(Notification).filter(
+        Notification.notification_type != "payment",
+    ).count()
+    notifications = db.query(Notification).filter(
+        Notification.notification_type != "payment",
+    ).all()
+
+    if notification_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aucune notification trouvée"
+        )
+    else:
+        for notification in notifications:
+            db.delete(notification)
 
     # Delete all notifications
-    db.query(Notification).delete()
     db.commit()
 
     return None
