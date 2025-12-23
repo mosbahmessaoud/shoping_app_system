@@ -16,6 +16,8 @@ from models.bill_item import BillItem
 from models.payment import Payment
 from models.stock_alert import StockAlert
 from models.notification import Notification
+from models.client_account import ClientAccount
+
 
 # Define what's exported when using "from models import *"
 __all__ = [
@@ -24,7 +26,7 @@ __all__ = [
     "engine",
     "SessionLocal",
     "get_db",
-    
+
     # Models
     "Admin",
     "Client",
@@ -35,4 +37,5 @@ __all__ = [
     "Payment",
     "StockAlert",
     "Notification",
+    "ClientAccount",
 ]

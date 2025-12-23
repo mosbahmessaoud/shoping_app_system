@@ -16,7 +16,8 @@ from routers import (
     notification_router,
     auth_router,
     otp_rout,
-    upload_images
+    upload_images,
+    client_account_router
 )
 
 # Import de l'initialisation de la base de données - FIXED: Added server. prefix
@@ -166,6 +167,7 @@ app.include_router(notification_router)
 app.include_router(auth_router)
 app.include_router(otp_rout)
 app.include_router(upload_images)
+app.include_router(client_account_router)
 
 
 # Point d'entrée pour exécuter l'application

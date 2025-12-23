@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 
 from utils.db import Base
 
+
 class Client(Base):
     __tablename__ = "clients"
 
@@ -19,8 +20,12 @@ class Client(Base):
     is_active = Column(Boolean, default=True)
 
     # Relationships
-    bills = relationship("Bill", back_populates="client", cascade="all, delete-orphan")
+    bills = relationship("Bill", back_populates="client",
+                         cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="client")
+    # Add this to Client model
+    account = relationship(
+        "ClientAccount", back_populates="client", uselist=False)
 
     def __repr__(self):
         return f"<Client(id={self.id}, username='{self.username}', email='{self.email}')>"

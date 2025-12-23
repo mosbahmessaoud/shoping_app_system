@@ -1,6 +1,18 @@
 """
 Alembic environment configuration with ENVIRONMENT support
 """
+from models.client_account import ClientAccount
+from models.otp import OTP
+from models.notification import Notification
+from models.stock_alert import StockAlert
+from models.payment import Payment
+from models.bill_item import BillItem
+from models.bill import Bill
+from models.product import Product
+from models.category import Category
+from models.client import Client
+from models.admin import Admin
+from utils.db import Base
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -26,19 +38,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import Base and all models - THIS IS CRITICAL!
-from utils.db import Base
 
 # Import all models to ensure they're registered with Base
-from models.admin import Admin
-from models.client import Client
-from models.category import Category
-from models.product import Product
-from models.bill import Bill
-from models.bill_item import BillItem
-from models.payment import Payment
-from models.stock_alert import StockAlert
-from models.notification import Notification
-from models.otp import OTP
 
 # Set target metadata for autogenerate support
 target_metadata = Base.metadata
