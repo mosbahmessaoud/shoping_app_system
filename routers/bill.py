@@ -359,7 +359,7 @@ def get_period_range_summary(
 #     )
 
 
-@router.post("/create", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
 def create_bill(
     bill_data: BillCreate,
     current_client=Depends(get_current_client),
