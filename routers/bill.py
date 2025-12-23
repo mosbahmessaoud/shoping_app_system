@@ -376,11 +376,6 @@ def create_bill(
     bill_count = db.query(Bill).count()
     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
 
-    # Simpler: just recalculate from scratch
-    unpaid_bills = db.query(Bill).filter(
-        Bill.client_id == current_client.id,
-        Bill.status.in_(["not paid", "partially paid"])
-    ).all()
     # Get or create client account
     client_account = db.query(ClientAccount).filter(
         ClientAccount.client_id == current_client.id
@@ -498,14 +493,26 @@ def create_bill(
         ).all()
     ) + new_bill.total_remaining)
 
-    if unpaid_bills:
-        client_account.total_amount = sum(
-            bill.total_amount for bill in unpaid_bills) + new_bill.total_amount
-        client_account.total_remaining = sum(
-            bill.total_remaining for bill in unpaid_bills) + new_bill.total_remaining
+    # Simpler: just recalculate from scratch
+    unpaid_bills = db.query(Bill).filter(
+        Bill.client_id == current_client.id,
+        Bill.status.in_(["not paid", "partially paid"])
+    ).all()
 
-    if client_account.total_remaining == 0:
-        client_account.total_amount = 0
+    # if unpaid_bills :
+    #     client_account.total_amount = sum(
+    #         bill.total_amount for bill in unpaid_bills)
+    #     client_account.total_remaining = sum(
+    #         bill.total_remaining for bill in unpaid_bills)
+
+    total_amount = sum(bill.total_amount for bill in unpaid_bills)
+    # total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
+
+    client_account.total_amount = Decimal(str(total_amount))
+    # client_account.total_remaining = Decimal(str(total_remaining))
+
+    # if client_account.total_remaining == 0:
+    #     client_account.total_amount = 0
 
     db.commit()
     db.refresh(new_bill)
