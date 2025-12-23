@@ -118,29 +118,29 @@ def get_account_by_client(client_id: int, db: Session = Depends(get_db)):
     return account_dict
 
 
-@router.put("/{account_id}", response_model=ClientAccountResponse)
-def update_client_account(
-    account_id: int,
-    account_update: ClientAccountUpdate,
-    db: Session = Depends(get_db)
-):
-    """Update a client account"""
-    db_account = db.query(ClientAccount).filter(
-        ClientAccount.id == account_id).first()
-    if not db_account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client account with id {account_id} not found"
-        )
+# @router.put("/{account_id}", response_model=ClientAccountResponse)
+# def update_client_account(
+#     account_id: int,
+#     account_update: ClientAccountUpdate,
+#     db: Session = Depends(get_db)
+# ):
+#     """Update a client account"""
+#     db_account = db.query(ClientAccount).filter(
+#         ClientAccount.id == account_id).first()
+#     if not db_account:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail=f"Client account with id {account_id} not found"
+#         )
 
-    # Update only provided fields
-    update_data = account_update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_account, field, value)
+#     # Update only provided fields
+#     update_data = account_update.dict(exclude_unset=True)
+#     for field, value in update_data.items():
+#         setattr(db_account, field, value)
 
-    db.commit()
-    db.refresh(db_account)
-    return db_account
+#     db.commit()
+#     db.refresh(db_account)
+#     return db_account
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -201,7 +201,6 @@ def delete_client_account(account_id: int, db: Session = Depends(get_db)):
 #     db.refresh(account)
 #     return account
 
-
 @router.post("/recalculate/{client_id}", response_model=ClientAccountResponse)
 def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
     """Recalculate client account totals from unpaid bills only and apply available credit"""
@@ -238,24 +237,19 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
         Bill.status.in_(["not paid", "partially paid"])
     ).order_by(Bill.created_at).all()
 
-    # Calculate totals from unpaid bills only
+    # Calculate total_amount from unpaid bills only
     total_amount = sum(bill.total_amount for bill in unpaid_bills)
-    # total_paid = sum(bill.total_paid for bill in unpaid_bills)
-    total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
 
-    # Update account with current totals
+    # Update account total_amount (total_paid stays as is - it's manually set)
     account.total_amount = Decimal(str(total_amount))
-    # account.total_paid = Decimal(str(total_paid))
-    account.total_remaining = Decimal(str(total_remaining))
 
     db.flush()
 
-    # Calculate available credit (if client paid more than they owe on unpaid bills)
-    available_credit = max(
-        Decimal('0.00'), account.total_paid - account.total_amount)
+    # Calculate available credit from manually set total_paid
+    available_credit = max(Decimal('0.00'), account.total_paid)
 
     # If there's available credit, apply it to unpaid bills
-    if available_credit > Decimal('0.00'):
+    if available_credit > Decimal('0.00') and unpaid_bills:
         remaining_credit = available_credit
 
         for bill in unpaid_bills:
@@ -280,22 +274,105 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
 
             db.flush()
 
-        # Recalculate account totals after applying credit (only unpaid bills)
-        unpaid_bills = db.query(Bill).filter(
-            Bill.client_id == client_id,
-            Bill.status.in_(["not paid", "partially paid"])
-        ).all()
+        # Update account.total_paid to reflect what was actually used
+        credit_used = available_credit - remaining_credit
+        account.total_paid = remaining_credit  # What's left after applying to bills
 
-        total_amount = sum(bill.total_amount for bill in unpaid_bills)
-        total_paid = sum(bill.total_paid for bill in unpaid_bills)
-        total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
+    # Recalculate total_remaining from unpaid bills
+    unpaid_bills = db.query(Bill).filter(
+        Bill.client_id == client_id,
+        Bill.status.in_(["not paid", "partially paid"])
+    ).all()
 
-        total_paid -= account.total_paid
+    total_amount = sum(bill.total_amount for bill in unpaid_bills)
+    total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
 
-        account.total_amount = Decimal(str(total_amount))
-        account.total_paid = Decimal(str(total_paid))
-        account.total_remaining = Decimal(str(total_remaining))
+    account.total_amount = Decimal(str(total_amount))
+    account.total_remaining = Decimal(str(total_remaining))
 
     db.commit()
     db.refresh(account)
     return account
+
+
+@router.put("/{account_id}", response_model=ClientAccountResponse)
+def update_client_account(
+    account_id: int,
+    account_update: ClientAccountUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update a client account and apply credit to unpaid bills if total_paid changed"""
+    from models.bill import Bill
+    from decimal import Decimal
+
+    db_account = db.query(ClientAccount).filter(
+        ClientAccount.id == account_id).first()
+    if not db_account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Client account with id {account_id} not found"
+        )
+
+    # Check if total_paid is being updated
+    update_data = account_update.dict(exclude_unset=True)
+    total_paid_changed = 'total_paid' in update_data
+
+    # Update fields
+    for field, value in update_data.items():
+        setattr(db_account, field, value)
+
+    db.flush()
+
+    # If total_paid changed, apply credit to unpaid bills
+    if total_paid_changed:
+        # Get unpaid and partially paid bills
+        unpaid_bills = db.query(Bill).filter(
+            Bill.client_id == db_account.client_id,
+            Bill.status.in_(["not paid", "partially paid"])
+        ).order_by(Bill.created_at).all()
+
+        available_credit = max(Decimal('0.00'), db_account.total_paid)
+
+        if available_credit > Decimal('0.00') and unpaid_bills:
+            remaining_credit = available_credit
+
+            for bill in unpaid_bills:
+                if remaining_credit <= Decimal('0.00'):
+                    break
+
+                # Calculate how much this bill still needs
+                bill_remaining = bill.total_amount - bill.total_paid
+
+                if remaining_credit >= bill_remaining:
+                    # Credit covers the entire remaining amount
+                    bill.total_paid += bill_remaining
+                    bill.total_remaining = Decimal('0.00')
+                    bill.status = "paid"
+                    remaining_credit -= bill_remaining
+                else:
+                    # Credit partially covers this bill
+                    bill.total_paid += remaining_credit
+                    bill.total_remaining = bill.total_amount - bill.total_paid
+                    bill.status = "partially paid"
+                    remaining_credit = Decimal('0.00')
+
+                db.flush()
+
+            # Update total_paid to reflect what's left
+            db_account.total_paid = remaining_credit
+
+        # Recalculate total_amount and total_remaining from unpaid bills
+        unpaid_bills = db.query(Bill).filter(
+            Bill.client_id == db_account.client_id,
+            Bill.status.in_(["not paid", "partially paid"])
+        ).all()
+
+        total_amount = sum(bill.total_amount for bill in unpaid_bills)
+        total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
+
+        db_account.total_amount = Decimal(str(total_amount))
+        db_account.total_remaining = Decimal(str(total_remaining))
+
+    db.commit()
+    db.refresh(db_account)
+    return db_account
