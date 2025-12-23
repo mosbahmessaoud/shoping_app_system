@@ -184,16 +184,17 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
         db.add(account)
 
     # Get all bills for this client
-    bills = db.query(Bill).filter(Bill.client_id == client_id).all()
+    bills = db.query(Bill).filter(Bill.client_id == client_id,
+                                  Bill.status != "paid").all()
 
     # Calculate totals
     total_amount = sum(bill.total_amount for bill in bills)
-    total_paid = sum(bill.total_paid for bill in bills)
+    # total_paid = sum(bill.total_paid for bill in bills)
     total_remaining = sum(bill.total_remaining for bill in bills)
 
     # Update account
     account.total_amount = Decimal(str(total_amount))
-    account.total_paid = Decimal(str(total_paid))
+    # account.total_paid = Decimal(str(total_paid))
     account.total_remaining = Decimal(str(total_remaining))
 
     db.commit()
