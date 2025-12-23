@@ -24,3 +24,5 @@ class ClientAccount(Base):
     def __repr__(self):
         return f"<ClientAccount(id={self.id}, client_id={self.client_id}, total_remaining={self.total_remaining})>"
 
+
+

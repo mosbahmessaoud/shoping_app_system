@@ -35,6 +35,8 @@ class ClientAccountResponse(ClientAccountBase):
 class ClientAccountWithClient(ClientAccountResponse):
     client_username: Optional[str] = None
     client_email: Optional[str] = None
+    client_phone_number: Optional[str] = None
+    client_village: Optional[str] = None
 
     class Config:
         from_attributes = True
