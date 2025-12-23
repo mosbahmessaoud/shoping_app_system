@@ -290,6 +290,8 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
         total_paid = sum(bill.total_paid for bill in unpaid_bills)
         total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
 
+        total_paid -= account.total_paid
+
         account.total_amount = Decimal(str(total_amount))
         account.total_paid = Decimal(str(total_paid))
         account.total_remaining = Decimal(str(total_remaining))
