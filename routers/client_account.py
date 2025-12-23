@@ -200,7 +200,6 @@ def delete_client_account(account_id: int, db: Session = Depends(get_db)):
 #     db.commit()
 #     db.refresh(account)
 #     return account
-
 @router.post("/recalculate/{client_id}", response_model=ClientAccountResponse)
 def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
     """Recalculate client account totals from unpaid bills only and apply available credit"""

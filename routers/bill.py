@@ -193,22 +193,194 @@ def get_period_range_summary(
     return summary
 
 
-@router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
+# @router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
+# def create_bill(
+#     bill_data: BillCreate,
+#     current_client=Depends(get_current_client),
+#     db: Session = Depends(get_db)
+# ):
+#     """Créer une nouvelle facture (client seulement)"""
+
+#     # Générer un numéro de facture unique
+#     bill_count = db.query(Bill).count()
+#     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
+
+#     client_account = db.query(ClientAccount).filter(
+#         ClientAccount.client_id == current_client.id).first()
+
+#     # Créer un compte si il n'existe pas
+#     if not client_account:
+#         client_account = ClientAccount(
+#             client_id=current_client.id,
+#             total_amount=Decimal('0.00'),
+#             total_paid=Decimal('0.00'),
+#             total_remaining=Decimal('0.00')
+#         )
+#         db.add(client_account)
+#         db.flush()
+
+#     # Créer la facture
+#     new_bill = Bill(
+#         client_id=current_client.id,
+#         bill_number=bill_number,
+#         total_amount=Decimal('0.00'),
+#         total_paid=Decimal('0.00'),
+#         total_remaining=Decimal('0.00'),
+#         status="not paid"
+#     )
+
+#     db.add(new_bill)
+#     db.flush()
+
+#     # Ajouter les articles de la facture
+#     total_amount = Decimal('0.00')
+#     bill_items = []
+
+#     for item in bill_data.items:
+#         # Vérifier si le produit existe
+#         product = db.query(Product).filter(
+#             Product.id == item.product_id).first()
+#         if not product:
+#             db.rollback()
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail=f"Produit avec ID {item.product_id} non trouvé"
+#             )
+
+#         # Vérifier si le produit est actif
+#         if not product.is_active:
+#             db.rollback()
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"Le produit '{product.name}' n'est pas disponible"
+#             )
+
+#         # Vérifier le stock
+#         if product.quantity_in_stock < item.quantity:
+#             db.rollback()
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"Stock insuffisant pour le produit '{product.name}'. Stock disponible: {product.quantity_in_stock}"
+#             )
+
+#         # Calculer le sous-total
+#         subtotal = product.price * item.quantity
+#         total_amount += subtotal
+
+#         # Créer l'article de facture
+#         bill_item = BillItem(
+#             bill_id=new_bill.id,
+#             product_id=product.id,
+#             product_name=product.name,
+#             unit_price=product.price,
+#             quantity=item.quantity,
+#             subtotal=subtotal
+#         )
+#         db.add(bill_item)
+#         bill_items.append(bill_item)
+
+#         # Décrémenter le stock
+#         product.quantity_in_stock -= item.quantity
+
+#         # Vérifier et créer une alerte de stock si nécessaire
+#         check_and_create_stock_alert(db, product)
+
+#     # Mettre à jour les totaux de la facture
+#     new_bill.total_amount = total_amount
+
+#     # Calculer le crédit disponible (total_paid - total_amount)
+#     # Si le client a payé plus que ce qu'il doit, il a du crédit
+#     available_credit = max(
+#         Decimal('0.00'), client_account.total_paid - client_account.total_amount)
+
+#     # Appliquer le crédit disponible
+#     if available_credit > Decimal('0.00'):
+#         if available_credit >= total_amount:
+#             # Le crédit couvre toute la facture
+#             new_bill.total_paid = total_amount
+#             new_bill.total_remaining = Decimal('0.00')
+#             new_bill.status = "paid"
+
+#             # Mettre à jour le compte client
+#             client_account.total_amount += total_amount
+#             # Le total_paid reste inchangé car on utilise le crédit existant
+#             client_account.total_remaining = client_account.total_amount - client_account.total_paid
+#         else:
+#             # Le crédit couvre partiellement la facture
+#             new_bill.total_paid = available_credit
+#             new_bill.total_remaining = total_amount - available_credit
+#             new_bill.status = "partially paid"
+
+#             # Mettre à jour le compte client
+#             client_account.total_amount += total_amount
+#             # Le total_paid reste inchangé car on utilise le crédit existant
+#             client_account.total_remaining = client_account.total_amount - client_account.total_paid
+#     else:
+#         # Pas de crédit disponible
+#         new_bill.total_remaining = total_amount
+#         new_bill.status = "not paid"
+
+#         # Mettre à jour le compte client
+#         client_account.total_amount += total_amount
+#         client_account.total_remaining = client_account.total_amount - client_account.total_paid
+
+#     db.commit()
+#     db.refresh(new_bill)
+#     db.refresh(client_account)
+
+#     # new_bill.total_remaining = total_amount
+
+#     # db.commit()
+#     # db.refresh(new_bill)
+
+#     # Créer une notification pour l'admin
+#     create_bill_notification(db, new_bill, current_client)
+
+#     return BillWithItems(
+#         id=new_bill.id,
+#         bill_number=new_bill.bill_number,
+#         client_id=new_bill.client_id,
+#         total_amount=new_bill.total_amount,
+#         total_paid=new_bill.total_paid,
+#         total_remaining=new_bill.total_remaining,
+#         status=new_bill.status,
+#         created_at=new_bill.created_at,
+#         updated_at=new_bill.updated_at,
+#         notification_sent=new_bill.notification_sent,
+#         items=[{
+#             "id": item.id,
+#             "product_id": item.product_id,
+#             "product_name": item.product_name,
+#             "unit_price": item.unit_price,
+#             "quantity": item.quantity,
+#             "subtotal": item.subtotal,
+#             "created_at": item.created_at
+#         } for item in bill_items]
+#     )
+
+
+@router.post("/create", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
 def create_bill(
     bill_data: BillCreate,
     current_client=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Créer une nouvelle facture (client seulement)"""
+    """Créer une nouvelle facture avec application automatique du crédit disponible"""
+    from models.bill import Bill
+    from models.bill_item import BillItem
+    from models.product import Product
+    from datetime import datetime
+    from decimal import Decimal
 
     # Générer un numéro de facture unique
     bill_count = db.query(Bill).count()
     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
 
+    # Get or create client account
     client_account = db.query(ClientAccount).filter(
-        ClientAccount.client_id == current_client.id).first()
+        ClientAccount.client_id == current_client.id
+    ).first()
 
-    # Créer un compte si il n'existe pas
     if not client_account:
         client_account = ClientAccount(
             client_id=current_client.id,
@@ -285,53 +457,56 @@ def create_bill(
         # Vérifier et créer une alerte de stock si nécessaire
         check_and_create_stock_alert(db, product)
 
-    # Mettre à jour les totaux de la facture
+    # Mettre à jour le montant total de la facture
     new_bill.total_amount = total_amount
 
-    # Calculer le crédit disponible (total_paid - total_amount)
-    # Si le client a payé plus que ce qu'il doit, il a du crédit
-    available_credit = max(
-        Decimal('0.00'), client_account.total_paid - client_account.total_amount)
+    # Get available credit (manually set by admin)
+    available_credit = max(Decimal('0.00'), client_account.total_paid)
 
-    # Appliquer le crédit disponible
+    # Apply credit to this new bill
     if available_credit > Decimal('0.00'):
         if available_credit >= total_amount:
-            # Le crédit couvre toute la facture
+            # Credit covers entire bill
             new_bill.total_paid = total_amount
             new_bill.total_remaining = Decimal('0.00')
             new_bill.status = "paid"
-
-            # Mettre à jour le compte client
-            client_account.total_amount += total_amount
-            # Le total_paid reste inchangé car on utilise le crédit existant
-            client_account.total_remaining = client_account.total_amount - client_account.total_paid
+            # Deduct used credit from account
+            client_account.total_paid -= total_amount
         else:
-            # Le crédit couvre partiellement la facture
+            # Credit partially covers bill
             new_bill.total_paid = available_credit
             new_bill.total_remaining = total_amount - available_credit
             new_bill.status = "partially paid"
-
-            # Mettre à jour le compte client
-            client_account.total_amount += total_amount
-            # Le total_paid reste inchangé car on utilise le crédit existant
-            client_account.total_remaining = client_account.total_amount - client_account.total_paid
+            # All credit is used
+            client_account.total_paid = Decimal('0.00')
     else:
-        # Pas de crédit disponible
+        # No credit available
         new_bill.total_remaining = total_amount
         new_bill.status = "not paid"
 
-        # Mettre à jour le compte client
-        client_account.total_amount += total_amount
-        client_account.total_remaining = client_account.total_amount - client_account.total_paid
+    # Update account totals (add this new bill to unpaid bills)
+    client_account.total_amount += total_amount
+    client_account.total_remaining = client_account.total_amount - (client_account.total_amount - sum(
+        bill.total_remaining for bill in db.query(Bill).filter(
+            Bill.client_id == current_client.id,
+            Bill.status.in_(["not paid", "partially paid"])
+        ).all()
+    ) + new_bill.total_remaining)
+
+    # Simpler: just recalculate from scratch
+    unpaid_bills = db.query(Bill).filter(
+        Bill.client_id == current_client.id,
+        Bill.status.in_(["not paid", "partially paid"])
+    ).all()
+
+    client_account.total_amount = sum(
+        bill.total_amount for bill in unpaid_bills) + new_bill.total_amount
+    client_account.total_remaining = sum(
+        bill.total_remaining for bill in unpaid_bills) + new_bill.total_remaining
 
     db.commit()
     db.refresh(new_bill)
     db.refresh(client_account)
-
-    # new_bill.total_remaining = total_amount
-
-    # db.commit()
-    # db.refresh(new_bill)
 
     # Créer une notification pour l'admin
     create_bill_notification(db, new_bill, current_client)
