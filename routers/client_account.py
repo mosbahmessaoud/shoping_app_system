@@ -195,7 +195,6 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
     account.total_amount = Decimal(str(total_amount))
     account.total_paid = Decimal(str(total_paid))
     account.total_remaining = Decimal(str(total_remaining))
-    account.total_credit = Decimal(str(total_paid))
 
     db.commit()
     db.refresh(account)
