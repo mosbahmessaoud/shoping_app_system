@@ -498,14 +498,14 @@ def create_bill(
         ).all()
     ) + new_bill.total_remaining)
 
-    if client_account.total_remaining == 0:
-        client_account.total_amount = 0
-
     if unpaid_bills:
         client_account.total_amount = sum(
             bill.total_amount for bill in unpaid_bills) + new_bill.total_amount
         client_account.total_remaining = sum(
             bill.total_remaining for bill in unpaid_bills) + new_bill.total_remaining
+
+    if client_account.total_remaining == 0:
+        client_account.total_amount = 0
 
     db.commit()
     db.refresh(new_bill)
