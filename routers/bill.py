@@ -205,6 +205,9 @@ def create_bill(
     bill_count = db.query(Bill).count()
     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
 
+    client_account = db.query(ClientAccount).filter(
+        ClientAccount.client_id == current_client.id).first()
+
     # Créer un compte si il n'existe pas
     if not client_account:
         client_account = ClientAccount(
@@ -285,12 +288,10 @@ def create_bill(
     # Mettre à jour les totaux de la facture
     new_bill.total_amount = total_amount
 
-    credit = db.query(ClientAccount).filter(
-        ClientAccount.client_id == current_client.id).first()
     # Calculer le crédit disponible (total_paid - total_amount)
     # Si le client a payé plus que ce qu'il doit, il a du crédit
     available_credit = max(
-        Decimal('0.00'), credit.total_paid - credit.total_amount)
+        Decimal('0.00'), client_account.total_paid - client_account.total_amount)
 
     # Appliquer le crédit disponible
     if available_credit > Decimal('0.00'):
