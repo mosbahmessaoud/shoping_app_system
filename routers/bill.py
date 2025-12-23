@@ -376,6 +376,11 @@ def create_bill(
     bill_count = db.query(Bill).count()
     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
 
+    # Simpler: just recalculate from scratch
+    unpaid_bills = db.query(Bill).filter(
+        Bill.client_id == current_client.id,
+        Bill.status.in_(["not paid", "partially paid"])
+    ).all()
     # Get or create client account
     client_account = db.query(ClientAccount).filter(
         ClientAccount.client_id == current_client.id
@@ -492,12 +497,6 @@ def create_bill(
             Bill.status.in_(["not paid", "partially paid"])
         ).all()
     ) + new_bill.total_remaining)
-
-    # Simpler: just recalculate from scratch
-    unpaid_bills = db.query(Bill).filter(
-        Bill.client_id == current_client.id,
-        Bill.status.in_(["not paid", "partially paid"])
-    ).all()
 
     client_account.total_amount = sum(
         bill.total_amount for bill in unpaid_bills) + new_bill.total_amount
