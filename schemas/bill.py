@@ -40,7 +40,7 @@ class BillBase(BaseModel):
     total_paid: Decimal
     total_remaining: Decimal
     status: str  # "paid" or "not paid"
-    delivery_status: str  # "delivered" or "on_the_way" or "not_delivered"
+    delivery_status: str  # "delivered" or "on_the_way" or "not_delivered" new column
 
 # Bill Response Schema
 
