@@ -6,6 +6,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from models.bill import Bill
 from models.bill_item import BillItem
+from models.notification import Notification
 from models.product import Product
 from models.client import Client
 from schemas.bill import BillCreate, BillResponse, BillWithItems, BillWithClient, BillSummary
@@ -1054,7 +1055,7 @@ def delete_all_bills(
     db: Session = Depends(get_db)
 ):
     """Delete all bills (admin only)"""
-
+    db.query(Notification).delete()
     db.query(BillItem).delete()
     db.query(Bill).delete()
     db.commit()
@@ -1080,6 +1081,9 @@ def delete_bill_by_id(
 
     bill_nember = bill.bill_number
 
+    # delete related notifications first
+    db.query(Notification).filter(Notification.bill_id == bill_id).delete()
+
     # Delete associated bill items first
     db.query(BillItem).filter(BillItem.bill_id == bill_id).delete()
     # Then delete the bill
@@ -1100,6 +1104,9 @@ def delete_all_paid_bills(
     paid_bills = db.query(Bill).filter(Bill.status == "paid").all()
 
     for bill in paid_bills:
+
+        # delete related notifications first
+        db.query(Notification).filter(Notification.bill_id == bill.id).delete()
         # Delete associated bill items first
         db.query(BillItem).filter(BillItem.bill_id == bill.id).delete()
         # Then delete the bill
@@ -1122,6 +1129,8 @@ def delete_old_bills(
     old_bills = db.query(Bill).filter(Bill.created_at < one_year_ago).all()
 
     for bill in old_bills:
+        # delete related notifications first
+        db.query(Notification).filter(Notification.bill_id == bill.id).delete()
         # Delete associated bill items first
         db.query(BillItem).filter(BillItem.bill_id == bill.id).delete()
         # Then delete the bill
