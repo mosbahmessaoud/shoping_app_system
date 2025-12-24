@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from models.bill import Bill
 from models.bill_item import BillItem
@@ -1046,3 +1046,87 @@ def change_delivery_status(
         updated_at=bill.updated_at,
         notification_sent=bill.notification_sent
     )
+
+
+# delete all bills
+@router.delete("/delete-all", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
+def delete_all_bills(
+    db: Session = Depends(get_db)
+):
+    """Delete all bills (admin only)"""
+
+    db.query(BillItem).delete()
+    db.query(Bill).delete()
+    db.commit()
+
+    return {"detail": "All bills deleted successfully"}
+
+# delete bill by id
+
+
+@router.delete("/{bill_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
+def delete_bill_by_id(
+    bill_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete a bill by its ID (admin only)"""
+
+    bill = db.query(Bill).filter(Bill.id == bill_id).first()
+    if not bill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bill not found"
+        )
+
+    bill_nember = bill.bill_number
+
+    # Delete associated bill items first
+    db.query(BillItem).filter(BillItem.bill_id == bill_id).delete()
+    # Then delete the bill
+    db.delete(bill)
+    db.commit()
+
+    return {"detail": f"{bill_nember} deleted successfully"}
+
+    # delete all paid bills
+
+
+@router.delete("/delete/paid", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
+def delete_all_paid_bills(
+    db: Session = Depends(get_db)
+):
+    """Delete all paid bills (admin only)"""
+
+    paid_bills = db.query(Bill).filter(Bill.status == "paid").all()
+
+    for bill in paid_bills:
+        # Delete associated bill items first
+        db.query(BillItem).filter(BillItem.bill_id == bill.id).delete()
+        # Then delete the bill
+        db.delete(bill)
+
+    db.commit()
+
+    return {"detail": "All paid bills deleted successfully"}
+
+# delete old then one year bills
+
+
+@router.delete("/delete/old", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
+def delete_old_bills(
+    db: Session = Depends(get_db)
+):
+    """Delete all bills older than one year (admin only)"""
+
+    one_year_ago = datetime.utcnow() - timedelta(days=370)
+    old_bills = db.query(Bill).filter(Bill.created_at < one_year_ago).all()
+
+    for bill in old_bills:
+        # Delete associated bill items first
+        db.query(BillItem).filter(BillItem.bill_id == bill.id).delete()
+        # Then delete the bill
+        db.delete(bill)
+
+    db.commit()
+
+    return {"detail": "All old bills deleted successfully"}
