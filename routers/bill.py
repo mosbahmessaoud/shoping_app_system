@@ -10,7 +10,7 @@ from models.product import Product
 from models.client import Client
 from schemas.bill import BillCreate, BillResponse, BillWithItems, BillWithClient, BillSummary
 from utils.db import get_db
-from utils.auth import get_current_client, get_current_admin
+from utils.auth import get_current_client, get_current_admin, get_current_user
 from utils.stock_manager import check_and_create_stock_alert
 from utils.notification_manager import create_bill_notification
 from sqlalchemy import func, extract, and_, cast, Date
@@ -211,7 +211,9 @@ def create_bill(
         total_amount=Decimal('0.00'),
         total_paid=Decimal('0.00'),
         total_remaining=Decimal('0.00'),
-        status="not paid"
+        status="not paid",
+        delivery_status="not_delivered"
+
     )
 
     db.add(new_bill)
@@ -288,6 +290,7 @@ def create_bill(
         total_paid=new_bill.total_paid,
         total_remaining=new_bill.total_remaining,
         status=new_bill.status,
+        delivery_status=new_bill.delivery_status,
         created_at=new_bill.created_at,
         updated_at=new_bill.updated_at,
         notification_sent=new_bill.notification_sent,
@@ -509,6 +512,7 @@ def get_my_bills(
             total_paid=bill.total_paid,
             total_remaining=bill.total_remaining,
             status=bill.status,
+            delivery_status=bill.delivery_status,
             created_at=bill.created_at,
             updated_at=bill.updated_at,
             notification_sent=bill.notification_sent,
@@ -585,6 +589,7 @@ def get_all_bills(
             total_paid=bill.total_paid,
             total_remaining=bill.total_remaining,
             status=bill.status,
+            delivery_status=bill.delivery_status,
             created_at=bill.created_at,
             updated_at=bill.updated_at,
             notification_sent=bill.notification_sent,
@@ -628,7 +633,7 @@ def get_bill_summary(
         total_paid=total_paid,
         total_pending=total_pending,
         paid_bills=paid_bills,
-        unpaid_bills=unpaid_bills
+        unpaid_bills=unpaid_bills,
     )
 
 # summary monthly bills - Fixed for PostgreSQL
@@ -695,6 +700,7 @@ def get_bill_by_id(
         total_paid=bill.total_paid,
         total_remaining=bill.total_remaining,
         status=bill.status,
+        delivery_status=bill.delivery_status,
         created_at=bill.created_at,
         updated_at=bill.updated_at,
         notification_sent=bill.notification_sent,
@@ -758,6 +764,7 @@ def pay_bill(
         total_paid=bill.total_paid,
         total_remaining=bill.total_remaining,
         status=bill.status,
+        delivery_status=bill.delivery_status,
         created_at=bill.created_at,
         updated_at=bill.updated_at,
         notification_sent=bill.notification_sent
@@ -787,6 +794,7 @@ def get_bill_by_id_admin(
         total_paid=bill.total_paid,
         total_remaining=bill.total_remaining,
         status=bill.status,
+        delivery_status=bill.delivery_status,
         created_at=bill.created_at,
         updated_at=bill.updated_at,
         notification_sent=bill.notification_sent,
@@ -894,3 +902,147 @@ def get_daily_hourly_summary(
         })
         for hour in range(24)
     ]
+
+
+# get status of a bill
+@router.get("/status/{bill_id}", response_model=BillWithClient, dependencies=[Depends(get_current_client)])
+def get_status_of_bill(
+    bill_id: int,
+    current_user=Depends(get_current_client),
+    db: Session = Depends(get_db)
+):
+    bill = db.query(Bill).filter(Bill.id == bill_id).first()
+
+    if not bill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="bill not found"
+        )
+
+    bill_status = bill.status
+
+    return {"bill_id": bill.id, "status": bill_status}
+
+# client get his bill by the delivery status
+
+
+@router.get("/delivery_status/{bill_id}", response_model=List[BillWithClient], dependencies=[Depends(get_current_client)])
+def get_bills_by_delivery_status(
+    bill_id: int,
+    status_data: str = Query(..., description="Delivery status to filter by"),
+    current_user=Depends(get_current_client),
+    db: Session = Depends(get_db)
+):
+    """" get the status delivery of the bill"""
+
+    bill = db.query(Bill).filter(Bill.id == bill_id,
+                                 Bill.delivery_status == status_data).first()
+    if not bill:
+        raise Exception(
+            status_code=status.HTTP_404_NOT_FOUND,)
+
+    return BillWithClient(
+        id=bill.id,
+        bill_number=bill.bill_number,
+        client_id=bill.client_id,
+        total_amount=bill.total_amount,
+        total_paid=bill.total_paid,
+        total_remaining=bill.total_remaining,
+        status=bill.status,
+        delivery_status=bill.delivery_status,
+        created_at=bill.created_at,
+        updated_at=bill.updated_at,
+        notification_sent=bill.notification_sent,
+        client_name=bill.client.username,
+        client_email=bill.client.email,
+        client_phone=bill.client.phone_number,
+        items=[{
+            "id": item.id,
+            "product_id": item.product_id,
+            "product_name": item.product_name,
+            "unit_price": item.unit_price,
+            "quantity": item.quantity,
+            "subtotal": item.subtotal,
+            "created_at": item.created_at
+        } for item in bill.bill_items]
+    )
+
+
+@router.get("/delivery_status", response_model=List[BillWithClient], dependencies=[Depends(get_current_admin)])
+def get_bills_by_delivery_status(
+    bill_id: int,
+    status_data: str = Query(..., description="Delivery status to filter by"),
+    db: Session = Depends(get_db)
+):
+    """" get the status delivery of the bill"""
+
+    bills = db.query(Bill).filter(Bill.delivery_status == status_data).all()
+    if not bills:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bill not found"
+        )
+
+    for bill in bills:
+        return BillWithClient(
+            id=bill.id,
+            bill_number=bill.bill_number,
+            client_id=bill.client_id,
+            total_amount=bill.total_amount,
+            total_paid=bill.total_paid,
+            total_remaining=bill.total_remaining,
+            status=bill.status,
+            delivery_status=bill.delivery_status,
+            created_at=bill.created_at,
+            updated_at=bill.updated_at,
+            notification_sent=bill.notification_sent,
+            client_name=bill.client.username,
+            client_email=bill.client.email,
+            client_phone=bill.client.phone_number,
+            items=[{
+                "id": item.id,
+                "product_id": item.product_id,
+                "product_name": item.product_name,
+                "unit_price": item.unit_price,
+                "quantity": item.quantity,
+                "subtotal": item.subtotal,
+                "created_at": item.created_at
+            } for item in bill.bill_items]
+        )
+    return bills
+
+
+@router.get("/change-delivery-status/{bill_id}", response_model=BillResponse, dependencies=[Depends(get_current_admin)])
+def change_delivery_status(
+    bill_id: int,
+    new_status: str = Query(..., description="New delivery status"),
+    db: Session = Depends(get_db)
+):
+    """Change the delivery status of a bill (admin only)"""
+
+    bill = db.query(Bill).filter(Bill.id == bill_id).first()
+    if not bill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bill not found"
+        )
+
+    # Update delivery status
+    bill.delivery_status = new_status
+
+    db.commit()
+    db.refresh(bill)
+
+    return BillResponse(
+        id=bill.id,
+        bill_number=bill.bill_number,
+        client_id=bill.client_id,
+        total_amount=bill.total_amount,
+        total_paid=bill.total_paid,
+        total_remaining=bill.total_remaining,
+        status=bill.status,
+        delivery_status=bill.delivery_status,
+        created_at=bill.created_at,
+        updated_at=bill.updated_at,
+        notification_sent=bill.notification_sent
+    )

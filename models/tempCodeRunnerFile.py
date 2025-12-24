@@ -19,8 +19,6 @@ class Bill(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     notification_sent = Column(Boolean, default=False)
-    delivery_status = Column(String(20), nullable=False,
-                             default="not_delivered")  # "delivered" or "on_the_way" or "not_delivered"
 
     # Relationships
     client = relationship("Client", back_populates="bills")
