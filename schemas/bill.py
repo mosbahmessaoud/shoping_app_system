@@ -40,7 +40,8 @@ class BillBase(BaseModel):
     total_paid: Decimal
     total_remaining: Decimal
     status: str  # "paid" or "not paid"
-    delivery_status: str  # "delivered" or "on_the_way" or "not_delivered" new column
+    # Make it optional temporarily
+    delivery_status: Optional[str] = "not_delivered"
 
 # Bill Response Schema
 
