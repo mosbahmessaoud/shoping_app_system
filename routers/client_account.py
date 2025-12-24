@@ -200,6 +200,8 @@ def delete_client_account(account_id: int, db: Session = Depends(get_db)):
 #     db.commit()
 #     db.refresh(account)
 #     return account
+
+
 @router.post("/recalculate/{client_id}", response_model=ClientAccountResponse)
 def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
     """Recalculate client account totals from unpaid bills only and apply available credit"""
@@ -233,7 +235,8 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
     # Get only unpaid and partially paid bills
     unpaid_bills = db.query(Bill).filter(
         Bill.client_id == client_id,
-        Bill.status.in_(["not paid", "partially paid"])
+        Bill.status != "paid"
+        # Bill.status.in_(["not paid", "partially paid"])
     ).order_by(Bill.created_at).all()
 
     # Calculate total_amount from unpaid bills only
@@ -274,13 +277,18 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
             db.flush()
 
         # Update account.total_paid to reflect what was actually used
-        credit_used = available_credit - remaining_credit
+        # credit_used = available_credit - remaining_credit
         account.total_paid = remaining_credit  # What's left after applying to bills
+
+    db.flush()
+    db.refresh(account)
 
     # Recalculate total_remaining from unpaid bills
     unpaid_bills = db.query(Bill).filter(
         Bill.client_id == client_id,
-        Bill.status.in_(["not paid", "partially paid"])
+        Bill.status != "paid"
+
+        # Bill.status.in_(["not paid", "partially paid"])
     ).all()
 
     total_amount = sum(bill.total_amount for bill in unpaid_bills)
@@ -327,7 +335,9 @@ def update_client_account(
         # Get unpaid and partially paid bills
         unpaid_bills = db.query(Bill).filter(
             Bill.client_id == db_account.client_id,
-            Bill.status.in_(["not paid", "partially paid"])
+            Bill.status != "paid"
+
+            # Bill.status.in_(["not paid", "partially paid"])
         ).order_by(Bill.created_at).all()
 
         available_credit = max(Decimal('0.00'), db_account.total_paid)
@@ -363,7 +373,9 @@ def update_client_account(
         # Recalculate total_amount and total_remaining from unpaid bills
         unpaid_bills = db.query(Bill).filter(
             Bill.client_id == db_account.client_id,
-            Bill.status.in_(["not paid", "partially paid"])
+            Bill.status != "paid"
+
+            # Bill.status.in_(["not paid", "partially paid"])
         ).all()
 
         total_amount = sum(bill.total_amount for bill in unpaid_bills)
