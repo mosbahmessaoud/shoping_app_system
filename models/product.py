@@ -28,9 +28,7 @@ class Product(Base):
     is_sold = Column(Boolean, default=False)  # new
 
     # NEW: Store product variants/options as JSON
-    # Example: {"type": "size", "options": ["S", "M", "L", "XL"]}
-    # Example: {"type": "shoe_size", "options": ["39", "40", "41", "42"]}
-    # Example: {"type": "color", "options": ["Red", "Blue", "Black"]}
+
     # JSON string for variant configurations
     variants = Column(Text, nullable=True)
 

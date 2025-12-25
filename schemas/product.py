@@ -6,28 +6,38 @@ from decimal import Decimal
 
 class ProductVariant(BaseModel):
     """Schema for product variants like size, color, etc."""
-    type: str = Field(..., min_length=1, max_length=50,
-                      description="Variant type: size, shoe_size, color, etc.")
-    options: List[str] = Field(..., min_items=1, max_items=50,
-                               description="Available options for this variant")
+    variants: List[dict] = Field(..., min_items=1, max_items=10,
+                                 description="List of variant configurations")
 
-    @field_validator('options')
+    @field_validator('variants')
     @classmethod
-    def validate_options(cls, v):
+    def validate_variants(cls, v):
         if not v:
-            raise ValueError('At least one option is required')
-        # Remove duplicates and empty strings
-        cleaned = [opt.strip() for opt in v if opt.strip()]
-        if not cleaned:
-            raise ValueError('Options cannot be empty')
-        return cleaned
+            raise ValueError('At least one variant is required')
 
-    @field_validator('type')
-    @classmethod
-    def validate_type(cls, v):
-        v = v.strip().lower()
-        if not v:
-            raise ValueError('Variant type cannot be empty')
+        for variant in v:
+            if 'type' not in variant or 'options' not in variant:
+                raise ValueError('Each variant must have "type" and "options"')
+
+            # Validate type
+            variant_type = variant['type'].strip().lower()
+            if not variant_type:
+                raise ValueError('Variant type cannot be empty')
+
+            # Validate options
+            options = variant['options']
+            if not isinstance(options, list) or not options:
+                raise ValueError('Options must be a non-empty list')
+
+            # Clean options
+            cleaned_options = [opt.strip() for opt in options if isinstance(
+                opt, str) and opt.strip()]
+            if not cleaned_options:
+                raise ValueError('Options cannot be empty')
+
+            variant['options'] = cleaned_options
+            variant['type'] = variant_type
+
         return v
 
 

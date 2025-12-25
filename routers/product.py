@@ -88,7 +88,7 @@ def create_product(
                 detail=f"Barcode already exists for product: {existing_product.name}"
             )
 
-    # NEW: Handle variants
+    # NEW: Handle multiple variants
     variants_json = None
     if product_data.variants:
         variants_json = json.dumps(product_data.variants.dict())
@@ -193,7 +193,7 @@ def get_all_products(
             category_id=p.category_id,
             admin_id=p.admin_id,
             barcode=p.barcode,
-            variants=variants_data,  # NEW
+            variants=variants_data,
             is_sold=p.is_sold,
             is_active=p.is_active,
             created_at=p.created_at,
@@ -202,6 +202,86 @@ def get_all_products(
         ))
 
     return result
+
+
+@router.get("/{product_id}", response_model=ProductWithCategory)
+def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
+    """Get product by ID"""
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+
+    variants_data = None
+    if product.variants:
+        try:
+            variants_dict = json.loads(product.variants)
+            variants_data = ProductVariant(**variants_dict)
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return ProductWithCategory(
+        id=product.id,
+        name=product.name,
+        description=product.description,
+        price=product.price,
+        quantity_in_stock=product.quantity_in_stock,
+        minimum_stock_level=product.minimum_stock_level,
+        image_urls=json.loads(
+            product.image_urls) if product.image_urls else [],
+        category_id=product.category_id,
+        admin_id=product.admin_id,
+        barcode=product.barcode,
+        is_sold=product.is_sold,
+        variants=variants_data,
+        is_active=product.is_active,
+        created_at=product.created_at,
+        updated_at=product.updated_at,
+        category_name=product.category.name
+    )
+
+
+@router.get("/barcode/{barcode}", response_model=ProductWithCategory)
+def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
+    """Get product by barcode"""
+
+    product = db.query(Product).filter(Product.barcode == barcode).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found with this barcode"
+        )
+
+    variants_data = None
+    if product.variants:
+        try:
+            variants_dict = json.loads(product.variants)
+            variants_data = ProductVariant(**variants_dict)
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return ProductWithCategory(
+        id=product.id,
+        name=product.name,
+        description=product.description,
+        price=product.price,
+        quantity_in_stock=product.quantity_in_stock,
+        minimum_stock_level=product.minimum_stock_level,
+        image_urls=json.loads(
+            product.image_urls) if product.image_urls else [],
+        category_id=product.category_id,
+        admin_id=product.admin_id,
+        barcode=product.barcode,
+        variants=variants_data,
+        is_sold=product.is_sold,
+        is_active=product.is_active,
+        created_at=product.created_at,
+        updated_at=product.updated_at,
+        category_name=product.category.name
+    )
 
 
 @router.get("/low-stock", response_model=List[ProductStockStatus])
@@ -231,45 +311,6 @@ def get_low_stock_products(
         ))
 
     return result
-
-
-@router.get("/{product_id}", response_model=ProductWithCategory)
-def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
-    """Get product by ID"""
-
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
-        )
-    variants_data = None
-    if product.variants:
-        try:
-            variants_dict = json.loads(product.variants)
-            variants_data = ProductVariant(**variants_dict)
-        except (json.JSONDecodeError, ValueError):
-            pass
-    return ProductWithCategory(
-        id=product.id,
-        name=product.name,
-        description=product.description,
-        price=product.price,
-        quantity_in_stock=product.quantity_in_stock,
-        minimum_stock_level=product.minimum_stock_level,
-        image_urls=json.loads(
-            product.image_urls) if product.image_urls else [],
-        category_id=product.category_id,
-        admin_id=product.admin_id,
-        barcode=product.barcode,
-        is_sold=product.is_sold,
-        variants=variants_data,  # NEW
-
-        is_active=product.is_active,
-        created_at=product.created_at,
-        updated_at=product.updated_at,
-        category_name=product.category.name
-    )
 
 
 # @router.put("/{product_id}", response_model=ProductResponse,
@@ -464,7 +505,7 @@ def _format_product_response(product: Product) -> ProductResponse:
             variants_dict = json.loads(product.variants)
             variants_data = ProductVariant(**variants_dict)
         except (json.JSONDecodeError, ValueError):
-            pass  # If variants JSON is invalid, return None
+            pass
 
     return ProductResponse(
         id=product.id,
@@ -550,50 +591,6 @@ def delete_product_image(
     db.refresh(product)
 
     return _format_product_response(product)
-
-
-# barcode
-# Add these new endpoints to your existing product router
-# Update get_product_by_barcode to include variants
-@router.get("/barcode/{barcode}", response_model=ProductWithCategory)
-def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
-    """Get product by barcode"""
-    from schemas.product import ProductVariant
-
-    product = db.query(Product).filter(Product.barcode == barcode).first()
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found with this barcode"
-        )
-
-    variants_data = None
-    if product.variants:
-        try:
-            variants_dict = json.loads(product.variants)
-            variants_data = ProductVariant(**variants_dict)
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    return ProductWithCategory(
-        id=product.id,
-        name=product.name,
-        description=product.description,
-        price=product.price,
-        quantity_in_stock=product.quantity_in_stock,
-        minimum_stock_level=product.minimum_stock_level,
-        image_urls=json.loads(
-            product.image_urls) if product.image_urls else [],
-        category_id=product.category_id,
-        admin_id=product.admin_id,
-        barcode=product.barcode,
-        variants=variants_data,  # NEW
-        is_sold=product.is_sold,
-        is_active=product.is_active,
-        created_at=product.created_at,
-        updated_at=product.updated_at,
-        category_name=product.category.name
-    )
 
 
 @router.post("/generate-barcode", response_model=dict)
