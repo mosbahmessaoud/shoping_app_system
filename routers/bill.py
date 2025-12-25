@@ -6,6 +6,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from models.bill import Bill
 from models.bill_item import BillItem
+from models.client_account import ClientAccount
 from models.notification import Notification
 from models.product import Product
 from models.client import Client
@@ -1028,9 +1029,49 @@ def change_delivery_status(
             detail="Bill not found"
         )
 
+    old_status = bill.delivery_status
     # Update delivery status
     bill.delivery_status = new_status
 
+    # if old_status == "cancelled" :
+    #         # if the new status is cancelled should update the Client Account
+    #         client_account= db.query(ClientAccount).filter(
+    #             ClientAccount.client_id == bill.client_id
+    #         ).first()
+
+    #         client_account.total_paid += bill.total_paid
+    #         client_account.total_amount += bill.total_amount
+    #         client_account.total_remaining += bill.total_remaining
+
+    #         db.refresh(client_account)
+    # client_account= db.query(ClientAccount).filter(
+    #                 ClientAccount.client_id == bill.client_id
+    #             ).first()
+
+    # if old_status == "cancelled" :
+
+    #         client_account.total_amount -= bill.total_amount
+    #         client_account.total_remaining -= bill.total_remaining
+
+    # if new_status == "cancelled" :
+    #     if bill.status == "paid":
+
+    #         client_account.total_paid += bill.total_paid
+
+    #     elif bill.status == "partial" :
+
+    #         client_account.total_amount -= bill.total_amount
+    #         client_account.total_paid += bill.total_paid
+    #         client_account.total_remaining -= bill.total_remaining
+
+    #     elif bill.status == "not paid" :
+
+    #         client_account.total_amount -= bill.total_amount
+    #         client_account.total_remaining -= bill.total_remaining
+
+    #     bill.status = "not paid"
+
+    # db.refresh(client_account)
     db.commit()
     db.refresh(bill)
 

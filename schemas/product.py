@@ -4,6 +4,33 @@ from typing import Optional, List
 from decimal import Decimal
 
 
+class ProductVariant(BaseModel):
+    """Schema for product variants like size, color, etc."""
+    type: str = Field(..., min_length=1, max_length=50,
+                      description="Variant type: size, shoe_size, color, etc.")
+    options: List[str] = Field(..., min_items=1, max_items=50,
+                               description="Available options for this variant")
+
+    @field_validator('options')
+    @classmethod
+    def validate_options(cls, v):
+        if not v:
+            raise ValueError('At least one option is required')
+        # Remove duplicates and empty strings
+        cleaned = [opt.strip() for opt in v if opt.strip()]
+        if not cleaned:
+            raise ValueError('Options cannot be empty')
+        return cleaned
+
+    @field_validator('type')
+    @classmethod
+    def validate_type(cls, v):
+        v = v.strip().lower()
+        if not v:
+            raise ValueError('Variant type cannot be empty')
+        return v
+
+
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
@@ -16,6 +43,7 @@ class ProductBase(BaseModel):
         None, max_length=100)  # NEW: Optional barcode
     is_active: bool = True
     is_sold: bool = False
+    variants: Optional[ProductVariant] = None  # NEW: Product variants
 
     @field_validator('image_urls')
     @classmethod
@@ -54,6 +82,7 @@ class ProductUpdate(BaseModel):
     barcode: Optional[str] = Field(None, max_length=100)  # NEW
     is_active: Optional[bool] = None
     is_sold: Optional[bool] = None
+    variants: Optional[ProductVariant] = None  # NEW: Product variants
 
     @field_validator('image_urls')
     @classmethod

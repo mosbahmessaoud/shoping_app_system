@@ -7,7 +7,7 @@ from models.product import Product
 from models.category import Category
 from schemas.product import (
     ProductCount, ProductCreate, ProductUpdate,
-    ProductResponse, ProductWithCategory,
+    ProductResponse, ProductVariant, ProductWithCategory,
     ProductStockStatus, StockUpdate
 )
 from utils.db import get_db
@@ -88,12 +88,19 @@ def create_product(
                 detail=f"Barcode already exists for product: {existing_product.name}"
             )
 
+    # NEW: Handle variants
+    variants_json = None
+    if product_data.variants:
+        variants_json = json.dumps(product_data.variants.dict())
+
     product_dict = product_data.dict(exclude={'category_id', 'image_urls'})
     new_product = Product(
         **product_dict,
         category_id=product_data.category_id,
         admin_id=current_admin.id,
-        image_urls=json.dumps(product_data.image_urls)
+        image_urls=json.dumps(product_data.image_urls),
+        variants=variants_json  # NEW
+
     )
 
     db.add(new_product)
@@ -165,9 +172,17 @@ def get_all_products(
         query = query.filter(Product.is_active == is_active)
 
     products = query.offset(skip).limit(limit).all()
+    result = []
+    for p in products:
+        variants_data = None
+        if p.variants:
+            try:
+                variants_dict = json.loads(p.variants)
+                variants_data = ProductVariant(**variants_dict)
+            except (json.JSONDecodeError, ValueError):
+                pass
 
-    return [
-        ProductWithCategory(
+        result.append(ProductWithCategory(
             id=p.id,
             name=p.name,
             description=p.description,
@@ -177,16 +192,16 @@ def get_all_products(
             image_urls=json.loads(p.image_urls) if p.image_urls else [],
             category_id=p.category_id,
             admin_id=p.admin_id,
-            barcode=p.barcode,  # NEW
-            is_sold=p.is_sold,  # NEW
-
+            barcode=p.barcode,
+            variants=variants_data,  # NEW
+            is_sold=p.is_sold,
             is_active=p.is_active,
             created_at=p.created_at,
             updated_at=p.updated_at,
             category_name=p.category.name
-        )
-        for p in products
-    ]
+        ))
+
+    return result
 
 
 @router.get("/low-stock", response_model=List[ProductStockStatus])
@@ -228,7 +243,13 @@ def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found"
         )
-
+    variants_data = None
+    if product.variants:
+        try:
+            variants_dict = json.loads(product.variants)
+            variants_data = ProductVariant(**variants_dict)
+        except (json.JSONDecodeError, ValueError):
+            pass
     return ProductWithCategory(
         id=product.id,
         name=product.name,
@@ -242,6 +263,8 @@ def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
         admin_id=product.admin_id,
         barcode=product.barcode,
         is_sold=product.is_sold,
+        variants=variants_data,  # NEW
+
         is_active=product.is_active,
         created_at=product.created_at,
         updated_at=product.updated_at,
@@ -335,6 +358,12 @@ def update_product(
 
         update_data['image_urls'] = json.dumps(new_urls)
 
+    # NEW: Handle variants update
+    if 'variants' in update_data:
+        if update_data['variants'] is not None:
+            update_data['variants'] = json.dumps(update_data['variants'])
+        # If variants is explicitly set to None, it will clear the variants
+
     for field, value in update_data.items():
         setattr(product, field, value)
 
@@ -427,6 +456,16 @@ def delete_product(
 # Update _format_product_response to include barcode
 def _format_product_response(product: Product) -> ProductResponse:
     """Helper to format product response with parsed image URLs"""
+    from schemas.product import ProductVariant  # Import at function level to avoid circular import
+
+    variants_data = None
+    if product.variants:
+        try:
+            variants_dict = json.loads(product.variants)
+            variants_data = ProductVariant(**variants_dict)
+        except (json.JSONDecodeError, ValueError):
+            pass  # If variants JSON is invalid, return None
+
     return ProductResponse(
         id=product.id,
         name=product.name,
@@ -440,6 +479,7 @@ def _format_product_response(product: Product) -> ProductResponse:
         admin_id=product.admin_id,
         barcode=product.barcode,  # NEW
         is_sold=product.is_sold,  # NEW
+        variants=variants_data,  # NEW
         is_active=product.is_active,
         created_at=product.created_at,
         updated_at=product.updated_at
@@ -514,10 +554,11 @@ def delete_product_image(
 
 # barcode
 # Add these new endpoints to your existing product router
-
+# Update get_product_by_barcode to include variants
 @router.get("/barcode/{barcode}", response_model=ProductWithCategory)
 def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
     """Get product by barcode"""
+    from schemas.product import ProductVariant
 
     product = db.query(Product).filter(Product.barcode == barcode).first()
     if not product:
@@ -525,6 +566,14 @@ def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found with this barcode"
         )
+
+    variants_data = None
+    if product.variants:
+        try:
+            variants_dict = json.loads(product.variants)
+            variants_data = ProductVariant(**variants_dict)
+        except (json.JSONDecodeError, ValueError):
+            pass
 
     return ProductWithCategory(
         id=product.id,
@@ -538,6 +587,7 @@ def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)):
         category_id=product.category_id,
         admin_id=product.admin_id,
         barcode=product.barcode,
+        variants=variants_data,  # NEW
         is_sold=product.is_sold,
         is_active=product.is_active,
         created_at=product.created_at,
