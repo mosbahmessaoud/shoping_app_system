@@ -904,14 +904,16 @@ def get_daily_hourly_summary(
         for hour in range(24)
     ]
 
+# Replace the get_status_of_bill endpoint (around line 850)
 
-# get status of a bill
-@router.get("/status/{bill_id}", response_model=BillWithClient, dependencies=[Depends(get_current_client)])
+
+@router.get("/status/{bill_id}", dependencies=[Depends(get_current_client)])
 def get_status_of_bill(
     bill_id: int,
     current_user=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
+    """Get delivery status of a bill"""
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
 
     if not bill:
@@ -920,10 +922,8 @@ def get_status_of_bill(
             detail="bill not found"
         )
 
-    bill_status = bill.delivery_status
-
-    return {"bill_id": bill.id, "status": bill_status}
-
+    # Return simple dict, not BillWithClient schema
+    return {"bill_id": bill.id, "status": bill.delivery_status}
 # client get his bill by the delivery status
 
 
