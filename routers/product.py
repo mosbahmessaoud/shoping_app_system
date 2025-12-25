@@ -55,9 +55,9 @@ def delete_cloudinary_images(image_urls: List[str]) -> dict:
             failed.append({"public_id": public_id, "error": str(e)})
 
     return {"deleted": deleted, "failed": failed}
+# Fixed create_product router
 
 
-# Update the create_product endpoint to handle barcode
 @router.post("/", response_model=ProductResponse,
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(get_current_admin)])
@@ -88,19 +88,20 @@ def create_product(
                 detail=f"Barcode already exists for product: {existing_product.name}"
             )
 
-    # NEW: Handle multiple variants
+    # Handle multiple variants
     variants_json = None
     if product_data.variants:
         variants_json = json.dumps(product_data.variants.dict())
 
-    product_dict = product_data.dict(exclude={'category_id', 'image_urls'})
+    # FIXED: Exclude 'variants' to avoid duplicate argument error
+    product_dict = product_data.dict(
+        exclude={'category_id', 'image_urls', 'variants'})
     new_product = Product(
         **product_dict,
         category_id=product_data.category_id,
         admin_id=current_admin.id,
         image_urls=json.dumps(product_data.image_urls),
-        variants=variants_json  # NEW
-
+        variants=variants_json
     )
 
     db.add(new_product)
@@ -109,6 +110,82 @@ def create_product(
     check_and_create_stock_alert(db, new_product)
 
     return _format_product_response(new_product)
+
+
+# Fixed update_product router
+@router.put("/{product_id}", response_model=ProductResponse,
+            dependencies=[Depends(get_current_admin)])
+def update_product(
+    product_id: int,
+    product_data: ProductUpdate,
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update product (admin only)"""
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+
+    if product_data.category_id and product_data.category_id != product.category_id:
+        category = db.query(Category).filter(
+            Category.id == product_data.category_id
+        ).first()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
+
+    # Check if barcode already exists (if being updated)
+    if product_data.barcode and product_data.barcode != product.barcode:
+        existing_product = db.query(Product).filter(
+            Product.barcode == product_data.barcode,
+            Product.id != product_id
+        ).first()
+        if existing_product:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Barcode already exists for product: {existing_product.name}"
+            )
+
+    update_data = product_data.dict(exclude_unset=True)
+
+    # Handle image updates: delete old images that are being replaced
+    if 'image_urls' in update_data:
+        old_urls = json.loads(product.image_urls) if product.image_urls else []
+        new_urls = update_data['image_urls']
+
+        # Find images that are being removed
+        urls_to_delete = [url for url in old_urls if url not in new_urls]
+
+        if urls_to_delete:
+            deletion_result = delete_cloudinary_images(urls_to_delete)
+            # Log failures
+            if deletion_result['failed']:
+                print(
+                    f"Failed to delete old images: {deletion_result['failed']}")
+
+        update_data['image_urls'] = json.dumps(new_urls)
+
+    # FIXED: Handle variants update properly
+    if 'variants' in update_data:
+        if update_data['variants'] is not None:
+            update_data['variants'] = json.dumps(
+                update_data['variants'].dict())
+        # If variants is explicitly set to None, it will clear the variants
+
+    for field, value in update_data.items():
+        setattr(product, field, value)
+
+    db.commit()
+    db.refresh(product)
+    check_and_create_stock_alert(db, product)
+
+    return _format_product_response(product)
 
 
 # @router.post("/", response_model=ProductResponse,
@@ -353,66 +430,6 @@ def get_low_stock_products(
 #     check_and_create_stock_alert(db, product)
 
 #     return _format_product_response(product)
-@router.put("/{product_id}", response_model=ProductResponse,
-            dependencies=[Depends(get_current_admin)])
-def update_product(
-    product_id: int,
-    product_data: ProductUpdate,
-    current_admin=Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Update product (admin only)"""
-
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
-        )
-
-    if product_data.category_id and product_data.category_id != product.category_id:
-        category = db.query(Category).filter(
-            Category.id == product_data.category_id
-        ).first()
-        if not category:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Category not found"
-            )
-
-    update_data = product_data.dict(exclude_unset=True)
-
-    # Handle image updates: delete old images that are being replaced
-    if 'image_urls' in update_data:
-        old_urls = json.loads(product.image_urls) if product.image_urls else []
-        new_urls = update_data['image_urls']
-
-        # Find images that are being removed
-        urls_to_delete = [url for url in old_urls if url not in new_urls]
-
-        if urls_to_delete:
-            deletion_result = delete_cloudinary_images(urls_to_delete)
-            # Log failures
-            if deletion_result['failed']:
-                print(
-                    f"Failed to delete old images: {deletion_result['failed']}")
-
-        update_data['image_urls'] = json.dumps(new_urls)
-
-    # NEW: Handle variants update
-    if 'variants' in update_data:
-        if update_data['variants'] is not None:
-            update_data['variants'] = json.dumps(update_data['variants'])
-        # If variants is explicitly set to None, it will clear the variants
-
-    for field, value in update_data.items():
-        setattr(product, field, value)
-
-    db.commit()
-    db.refresh(product)
-    check_and_create_stock_alert(db, product)
-
-    return _format_product_response(product)
 
 
 @router.patch("/{product_id}/stock", response_model=ProductResponse,
