@@ -387,3 +387,11 @@ def update_client_account(
     db.commit()
     db.refresh(db_account)
     return db_account
+
+
+
+
+
+
+
+

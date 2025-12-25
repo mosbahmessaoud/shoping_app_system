@@ -920,7 +920,7 @@ def get_status_of_bill(
             detail="bill not found"
         )
 
-    bill_status = bill.status
+    bill_status = bill.delivery_status
 
     return {"bill_id": bill.id, "status": bill_status}
 
