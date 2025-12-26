@@ -324,15 +324,25 @@ def update_client_account(
                 detail="Total remaining cannot be negative"
             )
 
-        # Get all unpaid and partially paid bills (excluding "Outside Purchases" bills)
+        # STEP 1: First, delete ALL existing "Outside Purchases" bills to start fresh
+        existing_outside_bills = db.query(Bill).filter(
+            Bill.client_id == db_account.client_id,
+            Bill.bill_number.like("Achats Hors Système%")
+        ).all()
+
+        for outside_bill in existing_outside_bills:
+            db.delete(outside_bill)
+
+        if existing_outside_bills:
+            db.flush()
+
+        # STEP 2: Get all unpaid and partially paid bills (NOW excluding outside purchases since we deleted them)
         unpaid_bills = db.query(Bill).filter(
             Bill.client_id == db_account.client_id,
-            Bill.status != "paid",
-            # Exclude outside purchase bills
-            ~Bill.bill_number.like("Achats Hors Système%")
+            Bill.status != "paid"
         ).order_by(Bill.created_at).all()
 
-        # Calculate current total from bills (excluding outside purchases)
+        # Calculate current total from bills (after removing outside purchases)
         bills_total_amount = sum(
             bill.total_amount for bill in unpaid_bills) if unpaid_bills else Decimal('0.00')
 
@@ -340,20 +350,21 @@ def update_client_account(
         # Client made manual purchases outside the system
         if new_total_remaining > bills_total_amount:
             # Calculate the difference (outside purchases amount)
+            # This is now correct because we deleted old outside purchase bills first
             outside_purchase_amount = new_total_remaining - bills_total_amount
 
-            # ALWAYS CREATE A NEW BILL - Never update existing ones
+            # ALWAYS CREATE A NEW BILL
             # Generate unique bill number for outside purchases
             # Format: Achats Hors Système - YYYYMMDD - UNIQUEID
             date_str = datetime.now().strftime('%Y%m%d')
-            unique_id = str(uuid.uuid4())[:4].upper()  # First 8 chars of UUID
+            unique_id = str(uuid.uuid4())[:8].upper()  # First 8 chars of UUID
             bill_number = f"Achats Hors Système - {date_str} - {unique_id}"
 
             # Ensure uniqueness (very unlikely to collide, but just in case)
             counter = 1
             original_bill_number = bill_number
             while db.query(Bill).filter(Bill.bill_number == bill_number).first():
-                unique_id = str(uuid.uuid4())[:4].upper()
+                unique_id = str(uuid.uuid4())[:8].upper()
                 bill_number = f"Achats Hors Système - {date_str} - {unique_id}"
                 counter += 1
                 if counter > 10:  # Safety break after 10 attempts
@@ -395,27 +406,7 @@ def update_client_account(
         # CASE 2: new_total_remaining <= bills_total_amount
         # Normal case - calculate payment from remaining
         else:
-            # Check if there are any "Outside Purchases" bills and remove them ALL
-            outside_bills = db.query(Bill).filter(
-                Bill.client_id == db_account.client_id,
-                Bill.bill_number.like("Achats Hors Système%"),
-                Bill.status != "paid"
-            ).all()
-
-            if outside_bills:
-                for outside_bill in outside_bills:
-                    db.delete(outside_bill)
-                db.flush()
-
-                # Recalculate unpaid bills after deletion
-                unpaid_bills = db.query(Bill).filter(
-                    Bill.client_id == db_account.client_id,
-                    Bill.status != "paid",
-                    ~Bill.bill_number.like("Achats Hors Système%")
-                ).order_by(Bill.created_at).all()
-
-                bills_total_amount = sum(
-                    bill.total_amount for bill in unpaid_bills) if unpaid_bills else Decimal('0.00')
+            # Outside bills already deleted in STEP 1
 
             # Calculate how much has been paid
             total_paid_amount = bills_total_amount - new_total_remaining
