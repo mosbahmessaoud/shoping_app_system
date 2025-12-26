@@ -357,10 +357,10 @@ def update_client_account(
             else:
                 # Generate unique bill number for outside purchases
                 # Format: Achats Hors Système - YYYYMMDD - UNIQUEID
-                date_str = datetime.now().strftime('%Y%m%d')
+                date_str = datetime.now().strftime('%Y%m%d%m%s')
                 # First 8 chars of UUID
-                unique_id = str(uuid.uuid4())[:8].upper()
-                bill_number = f"Achats Hors Système - {date_str} - {unique_id}"
+                unique_id = str(uuid.uuid4())[:3].upper()
+                bill_number = f"Achats Hors Système - {date_str}-{unique_id}"
 
                 # Ensure uniqueness (very unlikely to collide, but just in case)
                 counter = 1
