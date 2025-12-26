@@ -172,7 +172,7 @@ def update_client_account(
             # Check if there's already an "Outside Purchases" bill
             existing_outside_bill = db.query(Bill).filter(
                 Bill.client_id == db_account.client_id,
-                Bill.bill_title.like("Achats Hors Système%"),
+                Bill.bill_number.like("Achats Hors Système%"),
                 Bill.status != "paid"
             ).first()
 
@@ -187,7 +187,7 @@ def update_client_account(
                 # Create new bill for outside purchases
                 outside_bill = Bill(
                     client_id=db_account.client_id,
-                    bill_title=f"Achats Hors Système - {datetime.now().strftime('%d/%m/%Y')}",
+                    bill_number=f"Achats Hors Système - {datetime.now().strftime('%d/%m/%Y')}",
                     total_amount=outside_purchase_amount,
                     total_paid=Decimal('0.00'),
                     total_remaining=outside_purchase_amount,
@@ -220,7 +220,7 @@ def update_client_account(
             # Check if there's an "Outside Purchases" bill and remove it if exists
             outside_bill = db.query(Bill).filter(
                 Bill.client_id == db_account.client_id,
-                Bill.bill_title.like("Achats Hors Système%"),
+                Bill.bill_number.like("Achats Hors Système%"),
                 Bill.status != "paid"
             ).first()
 
