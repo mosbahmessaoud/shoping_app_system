@@ -286,6 +286,8 @@ def get_account_by_client(client_id: int, db: Session = Depends(get_db)):
 #     db.commit()
 #     db.refresh(db_account)
 #     return db_account
+
+
 @router.put("/{account_id}", response_model=ClientAccountResponse)
 def update_client_account(
     account_id: int,
@@ -295,7 +297,7 @@ def update_client_account(
     """
     Update a client account - when total_remaining is modified, 
     the system will automatically adjust bill payments.
-    If total_remaining > total_amount, creates a bill for outside purchases.
+    If total_remaining > total_amount, creates a NEW bill for outside purchases.
     """
     from models.bill import Bill
     from datetime import datetime
@@ -340,34 +342,22 @@ def update_client_account(
             # Calculate the difference (outside purchases amount)
             outside_purchase_amount = new_total_remaining - bills_total_amount
 
-            # # Check if there's already an "Outside Purchases" bill for this client
-            # existing_outside_bill = db.query(Bill).filter(
-            #     Bill.client_id == db_account.client_id,
-            #     Bill.bill_number.like("Achats Hors Système%"),
-            #     Bill.status != "paid"
-            # ).first()
-
-            # if existing_outside_bill:
-            #     # Update existing outside purchases bill
-            #     existing_outside_bill.total_amount = outside_purchase_amount
-            #     existing_outside_bill.total_remaining = outside_purchase_amount
-            #     existing_outside_bill.total_paid = Decimal('0.00')
-            #     existing_outside_bill.status = "not paid"
-            #     existing_outside_bill.updated_at = datetime.utcnow()
-            # else:
+            # ALWAYS CREATE A NEW BILL - Never update existing ones
             # Generate unique bill number for outside purchases
             # Format: Achats Hors Système - YYYYMMDD - UNIQUEID
-            date_str = datetime.now().strftime('%Y%m%d%m%s')
-            # First 8 chars of UUID
-            unique_id = str(uuid.uuid4())[:3].upper()
-            bill_number = f"Achats Hors Système - {date_str}-{unique_id}"
+            date_str = datetime.now().strftime('%Y%m%d')
+            unique_id = str(uuid.uuid4())[:4].upper()  # First 8 chars of UUID
+            bill_number = f"Achats Hors Système - {date_str} - {unique_id}"
 
             # Ensure uniqueness (very unlikely to collide, but just in case)
             counter = 1
             original_bill_number = bill_number
             while db.query(Bill).filter(Bill.bill_number == bill_number).first():
-                bill_number = f"{original_bill_number}-{counter}"
+                unique_id = str(uuid.uuid4())[:4].upper()
+                bill_number = f"Achats Hors Système - {date_str} - {unique_id}"
                 counter += 1
+                if counter > 10:  # Safety break after 10 attempts
+                    bill_number = f"{original_bill_number}-{counter}"
 
             # Create new bill for outside purchases
             outside_bill = Bill(
@@ -405,15 +395,16 @@ def update_client_account(
         # CASE 2: new_total_remaining <= bills_total_amount
         # Normal case - calculate payment from remaining
         else:
-            # First, check if there's an "Outside Purchases" bill and remove it
-            outside_bill = db.query(Bill).filter(
+            # Check if there are any "Outside Purchases" bills and remove them ALL
+            outside_bills = db.query(Bill).filter(
                 Bill.client_id == db_account.client_id,
                 Bill.bill_number.like("Achats Hors Système%"),
                 Bill.status != "paid"
-            ).first()
+            ).all()
 
-            if outside_bill:
-                db.delete(outside_bill)
+            if outside_bills:
+                for outside_bill in outside_bills:
+                    db.delete(outside_bill)
                 db.flush()
 
                 # Recalculate unpaid bills after deletion
