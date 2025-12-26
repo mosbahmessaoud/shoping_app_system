@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from sqlalchemy.orm import joinedload
+from decimal import Decimal
 
 from utils.db import get_db
 from models.client_account import ClientAccount
@@ -118,29 +118,105 @@ def get_account_by_client(client_id: int, db: Session = Depends(get_db)):
     return account_dict
 
 
-# @router.put("/{account_id}", response_model=ClientAccountResponse)
-# def update_client_account(
-#     account_id: int,
-#     account_update: ClientAccountUpdate,
-#     db: Session = Depends(get_db)
-# ):
-#     """Update a client account"""
-#     db_account = db.query(ClientAccount).filter(
-#         ClientAccount.id == account_id).first()
-#     if not db_account:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail=f"Client account with id {account_id} not found"
-#         )
+@router.put("/{account_id}", response_model=ClientAccountResponse)
+def update_client_account(
+    account_id: int,
+    account_update: ClientAccountUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update a client account - when total_remaining is modified, 
+    the system will automatically adjust bill payments
+    """
+    from models.bill import Bill
 
-#     # Update only provided fields
-#     update_data = account_update.dict(exclude_unset=True)
-#     for field, value in update_data.items():
-#         setattr(db_account, field, value)
+    db_account = db.query(ClientAccount).filter(
+        ClientAccount.id == account_id).first()
+    if not db_account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Client account with id {account_id} not found"
+        )
 
-#     db.commit()
-#     db.refresh(db_account)
-#     return db_account
+    # Check if total_remaining is being updated
+    update_data = account_update.dict(exclude_unset=True)
+    total_remaining_changed = 'total_remaining' in update_data
+
+    if total_remaining_changed:
+        new_total_remaining = Decimal(str(update_data['total_remaining']))
+
+        # Get all unpaid and partially paid bills
+        unpaid_bills = db.query(Bill).filter(
+            Bill.client_id == db_account.client_id,
+            Bill.status != "paid"
+        ).order_by(Bill.created_at).all()
+
+        if not unpaid_bills:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No unpaid bills found for this client"
+            )
+
+        # Calculate current total from bills
+        bills_total_amount = sum(bill.total_amount for bill in unpaid_bills)
+
+        # Calculate how much has been paid based on the new remaining amount
+        total_paid_amount = bills_total_amount - new_total_remaining
+
+        if total_paid_amount < Decimal('0.00'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Total remaining ({new_total_remaining}) cannot exceed total amount ({bills_total_amount})"
+            )
+
+        # Reset all bills to unpaid first
+        for bill in unpaid_bills:
+            bill.total_paid = Decimal('0.00')
+            bill.total_remaining = bill.total_amount
+            bill.status = "not paid"
+
+        # Apply payment to bills in order (oldest first)
+        remaining_to_apply = total_paid_amount
+
+        for bill in unpaid_bills:
+            if remaining_to_apply <= Decimal('0.00'):
+                break
+
+            if remaining_to_apply >= bill.total_amount:
+                # Full payment for this bill
+                bill.total_paid = bill.total_amount
+                bill.total_remaining = Decimal('0.00')
+                bill.status = "paid"
+                remaining_to_apply -= bill.total_amount
+            else:
+                # Partial payment for this bill
+                bill.total_paid = remaining_to_apply
+                bill.total_remaining = bill.total_amount - remaining_to_apply
+                bill.status = "partially paid"
+                remaining_to_apply = Decimal('0.00')
+
+        db.flush()
+
+        # Update account values based on actual bills
+        unpaid_bills_after = db.query(Bill).filter(
+            Bill.client_id == db_account.client_id,
+            Bill.status != "paid"
+        ).all()
+
+        db_account.total_amount = sum(
+            bill.total_amount for bill in unpaid_bills_after)
+        db_account.total_paid = total_paid_amount
+        db_account.total_remaining = sum(
+            bill.total_remaining for bill in unpaid_bills_after)
+
+    else:
+        # Update other fields normally
+        for field, value in update_data.items():
+            setattr(db_account, field, value)
+
+    db.commit()
+    db.refresh(db_account)
+    return db_account
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -159,54 +235,13 @@ def delete_client_account(account_id: int, db: Session = Depends(get_db)):
     return None
 
 
-# @router.post("/recalculate/{client_id}", response_model=ClientAccountResponse)
-# def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
-#     """Recalculate client account totals from all bills"""
-#     from models.bill import Bill
-#     from decimal import Decimal
-
-#     # Get or create account
-#     account = db.query(ClientAccount).filter(
-#         ClientAccount.client_id == client_id
-#     ).first()
-
-#     if not account:
-#         # Check if client exists
-#         client = db.query(Client).filter(Client.id == client_id).first()
-#         if not client:
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail=f"Client with id {client_id} not found"
-#             )
-
-#         # Create new account
-#         account = ClientAccount(client_id=client_id)
-#         db.add(account)
-
-#     # Get all bills for this client
-#     bills = db.query(Bill).filter(Bill.client_id == client_id,
-#                                   Bill.status != "paid").all()
-
-#     # Calculate totals
-#     total_amount = sum(bill.total_amount for bill in bills)
-#     # total_paid = sum(bill.total_paid for bill in bills)
-#     total_remaining = sum(bill.total_remaining for bill in bills)
-
-#     # Update account
-#     account.total_amount = Decimal(str(total_amount))
-#     # account.total_paid = Decimal(str(total_paid))
-#     account.total_remaining = Decimal(str(total_remaining))
-
-#     db.commit()
-#     db.refresh(account)
-#     return account
-
-
 @router.post("/recalculate/{client_id}", response_model=ClientAccountResponse)
 def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
-    """Recalculate client account totals from unpaid bills only and apply available credit"""
+    """
+    Recalculate client account totals from all bills.
+    This syncs the account with actual bill data without modifying bill payments.
+    """
     from models.bill import Bill
-    from decimal import Decimal
 
     # Get or create account
     account = db.query(ClientAccount).filter(
@@ -236,162 +271,18 @@ def recalculate_client_account(client_id: int, db: Session = Depends(get_db)):
     unpaid_bills = db.query(Bill).filter(
         Bill.client_id == client_id,
         Bill.status != "paid"
-        # Bill.status.in_(["not paid", "partially paid"])
-    ).order_by(Bill.created_at).all()
-
-    # Calculate total_amount from unpaid bills only
-    total_amount = sum(bill.total_amount for bill in unpaid_bills)
-
-    # Update account total_amount (total_paid stays as is - it's manually set)
-    account.total_amount = Decimal(str(total_amount))
-
-    db.flush()
-
-    # Calculate available credit from manually set total_paid
-    available_credit = max(Decimal('0.00'), account.total_paid)
-
-    # If there's available credit, apply it to unpaid bills
-    if available_credit > Decimal('0.00') and unpaid_bills:
-        remaining_credit = available_credit
-
-        for bill in unpaid_bills:
-            if remaining_credit <= Decimal('0.00'):
-                break
-
-            # Calculate how much this bill still needs
-            bill_remaining = bill.total_amount - bill.total_paid
-
-            if remaining_credit >= bill_remaining:
-                # Credit covers the entire remaining amount
-                bill.total_paid += bill_remaining
-                bill.total_remaining = Decimal('0.00')
-                bill.status = "paid"
-                remaining_credit -= bill_remaining
-            else:
-                # Credit partially covers this bill
-                bill.total_paid += remaining_credit
-                bill.total_remaining = bill.total_amount - bill.total_paid
-                bill.status = "partially paid"
-                remaining_credit = Decimal('0.00')
-
-            db.flush()
-
-        # Update account.total_paid to reflect what was actually used
-        # credit_used = available_credit - remaining_credit
-        account.total_paid = remaining_credit  # What's left after applying to bills
-
-    db.flush()
-    db.refresh(account)
-
-    # Recalculate total_remaining from unpaid bills
-    unpaid_bills = db.query(Bill).filter(
-        Bill.client_id == client_id,
-        Bill.status != "paid"
-
-        # Bill.status.in_(["not paid", "partially paid"])
     ).all()
 
+    # Calculate totals from bills
     total_amount = sum(bill.total_amount for bill in unpaid_bills)
+    total_paid = sum(bill.total_paid for bill in unpaid_bills)
     total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
 
+    # Update account with calculated values
     account.total_amount = Decimal(str(total_amount))
+    account.total_paid = Decimal(str(total_paid))
     account.total_remaining = Decimal(str(total_remaining))
 
     db.commit()
     db.refresh(account)
     return account
-
-
-@router.put("/{account_id}", response_model=ClientAccountResponse)
-def update_client_account(
-    account_id: int,
-    account_update: ClientAccountUpdate,
-    db: Session = Depends(get_db)
-):
-    """Update a client account and apply credit to unpaid bills if total_paid changed"""
-    from models.bill import Bill
-    from decimal import Decimal
-
-    db_account = db.query(ClientAccount).filter(
-        ClientAccount.id == account_id).first()
-    if not db_account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client account with id {account_id} not found"
-        )
-
-    # Check if total_paid is being updated
-    update_data = account_update.dict(exclude_unset=True)
-    total_paid_changed = 'total_paid' in update_data
-
-    # Update fields
-    for field, value in update_data.items():
-        setattr(db_account, field, value)
-
-    db.flush()
-
-    # If total_paid changed, apply credit to unpaid bills
-    if total_paid_changed:
-        # Get unpaid and partially paid bills
-        unpaid_bills = db.query(Bill).filter(
-            Bill.client_id == db_account.client_id,
-            Bill.status != "paid"
-
-            # Bill.status.in_(["not paid", "partially paid"])
-        ).order_by(Bill.created_at).all()
-
-        available_credit = max(Decimal('0.00'), db_account.total_paid)
-
-        if available_credit > Decimal('0.00') and unpaid_bills:
-            remaining_credit = available_credit
-
-            for bill in unpaid_bills:
-                if remaining_credit <= Decimal('0.00'):
-                    break
-
-                # Calculate how much this bill still needs
-                bill_remaining = bill.total_amount - bill.total_paid
-
-                if remaining_credit >= bill_remaining:
-                    # Credit covers the entire remaining amount
-                    bill.total_paid += bill_remaining
-                    bill.total_remaining = Decimal('0.00')
-                    bill.status = "paid"
-                    remaining_credit -= bill_remaining
-                else:
-                    # Credit partially covers this bill
-                    bill.total_paid += remaining_credit
-                    bill.total_remaining = bill.total_amount - bill.total_paid
-                    bill.status = "partially paid"
-                    remaining_credit = Decimal('0.00')
-
-                db.flush()
-
-            # Update total_paid to reflect what's left
-            db_account.total_paid = remaining_credit
-
-        # Recalculate total_amount and total_remaining from unpaid bills
-        unpaid_bills = db.query(Bill).filter(
-            Bill.client_id == db_account.client_id,
-            Bill.status != "paid"
-
-            # Bill.status.in_(["not paid", "partially paid"])
-        ).all()
-
-        total_amount = sum(bill.total_amount for bill in unpaid_bills)
-        total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
-
-        db_account.total_amount = Decimal(str(total_amount))
-        db_account.total_remaining = Decimal(str(total_remaining))
-
-    db.commit()
-    db.refresh(db_account)
-    return db_account
-
-
-
-
-
-
-
-
