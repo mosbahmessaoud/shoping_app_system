@@ -340,46 +340,46 @@ def update_client_account(
             # Calculate the difference (outside purchases amount)
             outside_purchase_amount = new_total_remaining - bills_total_amount
 
-            # Check if there's already an "Outside Purchases" bill for this client
-            existing_outside_bill = db.query(Bill).filter(
-                Bill.client_id == db_account.client_id,
-                Bill.bill_number.like("Achats Hors Système%"),
-                Bill.status != "paid"
-            ).first()
+            # # Check if there's already an "Outside Purchases" bill for this client
+            # existing_outside_bill = db.query(Bill).filter(
+            #     Bill.client_id == db_account.client_id,
+            #     Bill.bill_number.like("Achats Hors Système%"),
+            #     Bill.status != "paid"
+            # ).first()
 
-            if existing_outside_bill:
-                # Update existing outside purchases bill
-                existing_outside_bill.total_amount = outside_purchase_amount
-                existing_outside_bill.total_remaining = outside_purchase_amount
-                existing_outside_bill.total_paid = Decimal('0.00')
-                existing_outside_bill.status = "not paid"
-                existing_outside_bill.updated_at = datetime.utcnow()
-            else:
-                # Generate unique bill number for outside purchases
-                # Format: Achats Hors Système - YYYYMMDD - UNIQUEID
-                date_str = datetime.now().strftime('%Y%m%d%m%s')
-                # First 8 chars of UUID
-                unique_id = str(uuid.uuid4())[:3].upper()
-                bill_number = f"Achats Hors Système - {date_str}-{unique_id}"
+            # if existing_outside_bill:
+            #     # Update existing outside purchases bill
+            #     existing_outside_bill.total_amount = outside_purchase_amount
+            #     existing_outside_bill.total_remaining = outside_purchase_amount
+            #     existing_outside_bill.total_paid = Decimal('0.00')
+            #     existing_outside_bill.status = "not paid"
+            #     existing_outside_bill.updated_at = datetime.utcnow()
+            # else:
+            # Generate unique bill number for outside purchases
+            # Format: Achats Hors Système - YYYYMMDD - UNIQUEID
+            date_str = datetime.now().strftime('%Y%m%d%m%s')
+            # First 8 chars of UUID
+            unique_id = str(uuid.uuid4())[:3].upper()
+            bill_number = f"Achats Hors Système - {date_str}-{unique_id}"
 
-                # Ensure uniqueness (very unlikely to collide, but just in case)
-                counter = 1
-                original_bill_number = bill_number
-                while db.query(Bill).filter(Bill.bill_number == bill_number).first():
-                    bill_number = f"{original_bill_number}-{counter}"
-                    counter += 1
+            # Ensure uniqueness (very unlikely to collide, but just in case)
+            counter = 1
+            original_bill_number = bill_number
+            while db.query(Bill).filter(Bill.bill_number == bill_number).first():
+                bill_number = f"{original_bill_number}-{counter}"
+                counter += 1
 
-                # Create new bill for outside purchases
-                outside_bill = Bill(
-                    client_id=db_account.client_id,
-                    bill_number=bill_number,
-                    total_amount=outside_purchase_amount,
-                    total_paid=Decimal('0.00'),
-                    total_remaining=outside_purchase_amount,
-                    status="not paid",
-                    created_at=datetime.utcnow()
-                )
-                db.add(outside_bill)
+            # Create new bill for outside purchases
+            outside_bill = Bill(
+                client_id=db_account.client_id,
+                bill_number=bill_number,
+                total_amount=outside_purchase_amount,
+                total_paid=Decimal('0.00'),
+                total_remaining=outside_purchase_amount,
+                status="not paid",
+                created_at=datetime.utcnow()
+            )
+            db.add(outside_bill)
 
             # Reset all regular bills to unpaid (no payment applied)
             for bill in unpaid_bills:
