@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Numeric, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -22,8 +22,6 @@ class Bill(Base):
     delivery_status = Column(String(20), nullable=True,
                              # "delivered" or "on_the_way" or "not_delivered" this is the new column
                              default="not_delivered")
-    # NEW: Store variants as JSON string
-    selected_variants = Column(Text, nullable=True)
 
     # Relationships
     client = relationship("Client", back_populates="bills")
