@@ -286,7 +286,6 @@ def get_account_by_client(client_id: int, db: Session = Depends(get_db)):
 #     db.commit()
 #     db.refresh(db_account)
 #     return db_account
-
 @router.put("/{account_id}", response_model=ClientAccountResponse)
 def update_client_account(
     account_id: int,
@@ -300,6 +299,7 @@ def update_client_account(
     """
     from models.bill import Bill
     from datetime import datetime
+    import uuid
 
     db_account = db.query(ClientAccount).filter(
         ClientAccount.id == account_id).first()
@@ -340,7 +340,7 @@ def update_client_account(
             # Calculate the difference (outside purchases amount)
             outside_purchase_amount = new_total_remaining - bills_total_amount
 
-            # Check if there's already an "Outside Purchases" bill
+            # Check if there's already an "Outside Purchases" bill for this client
             existing_outside_bill = db.query(Bill).filter(
                 Bill.client_id == db_account.client_id,
                 Bill.bill_number.like("Achats Hors Système%"),
@@ -355,10 +355,24 @@ def update_client_account(
                 existing_outside_bill.status = "not paid"
                 existing_outside_bill.updated_at = datetime.utcnow()
             else:
+                # Generate unique bill number for outside purchases
+                # Format: Achats Hors Système - YYYYMMDD - UNIQUEID
+                date_str = datetime.now().strftime('%Y%m%d')
+                # First 8 chars of UUID
+                unique_id = str(uuid.uuid4())[:8].upper()
+                bill_number = f"Achats Hors Système - {date_str} - {unique_id}"
+
+                # Ensure uniqueness (very unlikely to collide, but just in case)
+                counter = 1
+                original_bill_number = bill_number
+                while db.query(Bill).filter(Bill.bill_number == bill_number).first():
+                    bill_number = f"{original_bill_number}-{counter}"
+                    counter += 1
+
                 # Create new bill for outside purchases
                 outside_bill = Bill(
                     client_id=db_account.client_id,
-                    bill_number=f"Achats Hors Système - {datetime.now().strftime('%d/%m/%Y')}",
+                    bill_number=bill_number,
                     total_amount=outside_purchase_amount,
                     total_paid=Decimal('0.00'),
                     total_remaining=outside_purchase_amount,
@@ -381,11 +395,10 @@ def update_client_account(
                 Bill.status != "paid"
             ).all()
 
-            # FIX: Set total_paid to 0 (not negative) when there are outside purchases
+            # Set total_paid to 0 (not negative) when there are outside purchases
             db_account.total_amount = sum(
                 bill.total_amount for bill in all_unpaid_bills)
-            db_account.total_paid = Decimal(
-                '0.00')  # FIX: Always 0 or positive
+            db_account.total_paid = Decimal('0.00')
             db_account.total_remaining = sum(
                 bill.total_remaining for bill in all_unpaid_bills)
 
@@ -416,7 +429,7 @@ def update_client_account(
             # Calculate how much has been paid
             total_paid_amount = bills_total_amount - new_total_remaining
 
-            # FIX: Ensure total_paid is never negative
+            # Ensure total_paid is never negative
             total_paid_amount = max(Decimal('0.00'), total_paid_amount)
 
             # Reset all bills to unpaid first
@@ -455,7 +468,7 @@ def update_client_account(
 
             db_account.total_amount = sum(
                 bill.total_amount for bill in unpaid_bills_after)
-            db_account.total_paid = total_paid_amount  # Already guaranteed >= 0
+            db_account.total_paid = total_paid_amount
             db_account.total_remaining = sum(
                 bill.total_remaining for bill in unpaid_bills_after)
 
