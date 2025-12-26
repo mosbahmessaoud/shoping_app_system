@@ -4,13 +4,15 @@ from typing import Optional, List
 from decimal import Decimal
 
 # Bill Item Schema (for creating bill)
+# Add this new schema after BillItemCreate
 
 
 class BillItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(..., gt=0)
+    selected_variants: Optional[dict] = None  # NEW: Store variant selections
 
-# Bill Item Response Schema
+# Update BillItemResponse to include variants
 
 
 class BillItemResponse(BaseModel):
@@ -20,11 +22,11 @@ class BillItemResponse(BaseModel):
     unit_price: Decimal
     quantity: int
     subtotal: Decimal
+    selected_variants: Optional[dict] = None  # NEW
     created_at: datetime
 
     class Config:
         from_attributes = True
-
 # Bill Create Schema
 
 

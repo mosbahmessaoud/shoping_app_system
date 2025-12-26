@@ -16,8 +16,23 @@ from utils.auth import get_current_client, get_current_admin, get_current_user
 from utils.stock_manager import check_and_create_stock_alert
 from utils.notification_manager import create_bill_notification
 from sqlalchemy import func, extract, and_, cast, Date
+import json
 
 router = APIRouter(prefix="/bill", tags=["Bill"])
+
+
+def format_bill_item(item):
+    """Helper function to format bill item with variants"""
+    return {
+        "id": item.id,
+        "product_id": item.product_id,
+        "product_name": item.product_name,
+        "unit_price": item.unit_price,
+        "quantity": item.quantity,
+        "subtotal": item.subtotal,
+        "selected_variants": json.loads(item.selected_variants) if item.selected_variants else None,
+        "created_at": item.created_at
+    }
 
 
 @router.get("/statistics/daily", response_model=List[dict])
@@ -215,7 +230,6 @@ def create_bill(
         total_remaining=Decimal('0.00'),
         status="not paid",
         delivery_status="not_delivered"
-
     )
 
     db.add(new_bill)
@@ -256,14 +270,23 @@ def create_bill(
         subtotal = product.price * item.quantity
         total_amount += subtotal
 
-        # Créer l'article de facture
+        # Build product name with variants
+        product_name = product.name
+        if item.selected_variants:
+            variant_text = ', '.join(
+                [f"{v}" for v in item.selected_variants.values()])
+            product_name = f"{product.name} ({variant_text})"
+
+        # Créer l'article de facture avec variantes
         bill_item = BillItem(
             bill_id=new_bill.id,
             product_id=product.id,
-            product_name=product.name,
+            product_name=product_name,  # Include variants in name
             unit_price=product.price,
             quantity=item.quantity,
-            subtotal=subtotal
+            subtotal=subtotal,
+            selected_variants=json.dumps(
+                item.selected_variants) if item.selected_variants else None  # NEW
         )
         db.add(bill_item)
         bill_items.append(bill_item)
@@ -303,9 +326,125 @@ def create_bill(
             "unit_price": item.unit_price,
             "quantity": item.quantity,
             "subtotal": item.subtotal,
+            # NEW
+            "selected_variants": json.loads(item.selected_variants) if item.selected_variants else None,
             "created_at": item.created_at
         } for item in bill_items]
     )
+
+
+# @router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
+# def create_bill(
+#     bill_data: BillCreate,
+#     current_client=Depends(get_current_client),
+#     db: Session = Depends(get_db)
+# ):
+#     """Créer une nouvelle facture (client seulement)"""
+
+#     # Générer un numéro de facture unique
+#     bill_count = db.query(Bill).count()
+#     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
+
+#     # Créer la facture
+#     new_bill = Bill(
+#         client_id=current_client.id,
+#         bill_number=bill_number,
+#         total_amount=Decimal('0.00'),
+#         total_paid=Decimal('0.00'),
+#         total_remaining=Decimal('0.00'),
+#         status="not paid",
+#         delivery_status="not_delivered"
+
+#     )
+
+#     db.add(new_bill)
+#     db.flush()
+
+#     # Ajouter les articles de la facture
+#     total_amount = Decimal('0.00')
+#     bill_items = []
+
+#     for item in bill_data.items:
+#         # Vérifier si le produit existe
+#         product = db.query(Product).filter(
+#             Product.id == item.product_id).first()
+#         if not product:
+#             db.rollback()
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail=f"Produit avec ID {item.product_id} non trouvé"
+#             )
+
+#         # Vérifier si le produit est actif
+#         if not product.is_active:
+#             db.rollback()
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"Le produit '{product.name}' n'est pas disponible"
+#             )
+
+#         # Vérifier le stock
+#         if product.quantity_in_stock < item.quantity:
+#             db.rollback()
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"Stock insuffisant pour le produit '{product.name}'. Stock disponible: {product.quantity_in_stock}"
+#             )
+
+#         # Calculer le sous-total
+#         subtotal = product.price * item.quantity
+#         total_amount += subtotal
+
+#         # Créer l'article de facture
+#         bill_item = BillItem(
+#             bill_id=new_bill.id,
+#             product_id=product.id,
+#             product_name=product.name,
+#             unit_price=product.price,
+#             quantity=item.quantity,
+#             subtotal=subtotal
+#         )
+#         db.add(bill_item)
+#         bill_items.append(bill_item)
+
+#         # Décrémenter le stock
+#         product.quantity_in_stock -= item.quantity
+
+#         # Vérifier et créer une alerte de stock si nécessaire
+#         check_and_create_stock_alert(db, product)
+
+#     # Mettre à jour les totaux de la facture
+#     new_bill.total_amount = total_amount
+#     new_bill.total_remaining = total_amount
+
+#     db.commit()
+#     db.refresh(new_bill)
+
+#     # Créer une notification pour l'admin
+#     create_bill_notification(db, new_bill, current_client)
+
+#     return BillWithItems(
+#         id=new_bill.id,
+#         bill_number=new_bill.bill_number,
+#         client_id=new_bill.client_id,
+#         total_amount=new_bill.total_amount,
+#         total_paid=new_bill.total_paid,
+#         total_remaining=new_bill.total_remaining,
+#         status=new_bill.status,
+#         delivery_status=new_bill.delivery_status,
+#         created_at=new_bill.created_at,
+#         updated_at=new_bill.updated_at,
+#         notification_sent=new_bill.notification_sent,
+#         items=[{
+#             "id": item.id,
+#             "product_id": item.product_id,
+#             "product_name": item.product_name,
+#             "unit_price": item.unit_price,
+#             "quantity": item.quantity,
+#             "subtotal": item.subtotal,
+#             "created_at": item.created_at
+#         } for item in bill_items]
+#     )
 
 
 # @router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
@@ -491,7 +630,7 @@ def create_bill(
 #             "created_at": item.created_at
 #         } for item in bill_items]
 #     )
-
+# Example: Update get_my_bills
 @router.get("/my-bills", response_model=List[BillWithItems])
 def get_my_bills(
     skip: int = 0,
@@ -518,15 +657,8 @@ def get_my_bills(
             created_at=bill.created_at,
             updated_at=bill.updated_at,
             notification_sent=bill.notification_sent,
-            items=[{
-                "id": item.id,
-                "product_id": item.product_id,
-                "product_name": item.product_name,
-                "unit_price": item.unit_price,
-                "quantity": item.quantity,
-                "subtotal": item.subtotal,
-                "created_at": item.created_at
-            } for item in bill.bill_items]
+            items=[format_bill_item(item)
+                   for item in bill.bill_items]  # UPDATED
         ))
 
     return result
@@ -598,15 +730,7 @@ def get_all_bills(
             client_name=bill.client.username,
             client_email=bill.client.email,
             client_phone=bill.client.phone_number,
-            items=[{
-                "id": item.id,
-                "product_id": item.product_id,
-                "product_name": item.product_name,
-                "unit_price": item.unit_price,
-                "quantity": item.quantity,
-                "subtotal": item.subtotal,
-                "created_at": item.created_at
-            } for item in bill.bill_items]
+            items=[format_bill_item(item) for item in bill.bill_items]
         ))
 
     return result
@@ -706,15 +830,7 @@ def get_bill_by_id(
         created_at=bill.created_at,
         updated_at=bill.updated_at,
         notification_sent=bill.notification_sent,
-        items=[{
-            "id": item.id,
-            "product_id": item.product_id,
-            "product_name": item.product_name,
-            "unit_price": item.unit_price,
-            "quantity": item.quantity,
-            "subtotal": item.subtotal,
-            "created_at": item.created_at
-        } for item in bill.bill_items]
+        items=[format_bill_item(item) for item in bill.bill_items]
     )
 
 # admin pay a bill
@@ -803,15 +919,7 @@ def get_bill_by_id_admin(
         client_name=bill.client.username,
         client_email=bill.client.email,
         client_phone=bill.client.phone_number,
-        items=[{
-            "id": item.id,
-            "product_id": item.product_id,
-            "product_name": item.product_name,
-            "unit_price": item.unit_price,
-            "quantity": item.quantity,
-            "subtotal": item.subtotal,
-            "created_at": item.created_at
-        } for item in bill.bill_items]
+        items=[format_bill_item(item) for item in bill.bill_items]
     )
 
 
@@ -958,15 +1066,7 @@ def get_bills_by_delivery_status(
         client_name=bill.client.username,
         client_email=bill.client.email,
         client_phone=bill.client.phone_number,
-        items=[{
-            "id": item.id,
-            "product_id": item.product_id,
-            "product_name": item.product_name,
-            "unit_price": item.unit_price,
-            "quantity": item.quantity,
-            "subtotal": item.subtotal,
-            "created_at": item.created_at
-        } for item in bill.bill_items]
+        items=[format_bill_item(item) for item in bill.bill_items]
     )
 
 
@@ -1001,15 +1101,7 @@ def get_bills_by_delivery_status(
             client_name=bill.client.username,
             client_email=bill.client.email,
             client_phone=bill.client.phone_number,
-            items=[{
-                "id": item.id,
-                "product_id": item.product_id,
-                "product_name": item.product_name,
-                "unit_price": item.unit_price,
-                "quantity": item.quantity,
-                "subtotal": item.subtotal,
-                "created_at": item.created_at
-            } for item in bill.bill_items]
+            items=[format_bill_item(item) for item in bill.bill_items]
         )
     return bills
 
