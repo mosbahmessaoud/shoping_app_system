@@ -12,7 +12,7 @@ class Product(Base):
     admin_id = Column(Integer, ForeignKey("admins.id"), nullable=False)
     name = Column(String(200), nullable=False, index=True)
     description = Column(String(1000), nullable=True)
-    price = Column(Numeric(10, 2), nullable=False)
+    price = Column(Numeric(15, 2), nullable=False)
     quantity_in_stock = Column(Integer, nullable=False, default=0)
     minimum_stock_level = Column(Integer, nullable=False, default=10)
 

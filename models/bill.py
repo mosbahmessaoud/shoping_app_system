@@ -11,9 +11,9 @@ class Bill(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     bill_number = Column(String(50), unique=True, nullable=False, index=True)
-    total_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
-    total_paid = Column(Numeric(10, 2), nullable=False, default=0.00)
-    total_remaining = Column(Numeric(10, 2), nullable=False, default=0.00)
+    total_amount = Column(Numeric(15, 2), nullable=False, default=0.00)
+    total_paid = Column(Numeric(15, 2), nullable=False, default=0.00)
+    total_remaining = Column(Numeric(15, 2), nullable=False, default=0.00)
     status = Column(String(20), nullable=False,
                     default="not paid")  # "paid" or "not paid"
     created_at = Column(DateTime(timezone=True), server_default=func.now())

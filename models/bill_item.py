@@ -13,9 +13,9 @@ class BillItem(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     # Store product name at time of purchase
     product_name = Column(String(200), nullable=False)
-    unit_price = Column(Numeric(10, 2), nullable=False)
+    unit_price = Column(Numeric(15, 2), nullable=False)
     quantity = Column(Integer, nullable=False)
-    subtotal = Column(Numeric(10, 2), nullable=False)
+    subtotal = Column(Numeric(15, 2), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # NEW: Store variants as JSON string
     selected_variants = Column(Text, nullable=True)

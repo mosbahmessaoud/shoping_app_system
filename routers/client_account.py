@@ -323,6 +323,13 @@ def update_client_account(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Total remaining cannot be negative"
             )
+        
+        MAX_VALUE = Decimal('99999999.99')
+        if new_total_remaining > MAX_VALUE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Total remaining cannot exceed {MAX_VALUE:,.2f} DA"
+            )
 
         # Get ALL unpaid and partially paid bills (including outside purchases bills)
         # Treat all bills the same way
