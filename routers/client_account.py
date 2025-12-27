@@ -287,7 +287,6 @@ def get_account_by_client(client_id: int, db: Session = Depends(get_db)):
 #     db.refresh(db_account)
 #     return db_account
 
-
 @router.put("/{account_id}", response_model=ClientAccountResponse)
 def update_client_account(
     account_id: int,
@@ -298,6 +297,7 @@ def update_client_account(
     Update a client account - when total_remaining is modified, 
     the system will automatically adjust bill payments.
     If total_remaining > total_amount, creates a NEW bill for outside purchases.
+    Outside bills are treated the same as regular bills.
     """
     from models.bill import Bill
     from datetime import datetime
@@ -324,43 +324,31 @@ def update_client_account(
                 detail="Total remaining cannot be negative"
             )
 
-        # STEP 1: First, delete ALL existing "Outside Purchases" bills to start fresh
-        existing_outside_bills = db.query(Bill).filter(
-            Bill.client_id == db_account.client_id,
-            Bill.bill_number.like("Achats Hors Système%")
-        ).all()
-
-        for outside_bill in existing_outside_bills:
-            db.delete(outside_bill)
-
-        if existing_outside_bills:
-            db.flush()
-
-        # STEP 2: Get all unpaid and partially paid bills (NOW excluding outside purchases since we deleted them)
+        # Get ALL unpaid and partially paid bills (including outside purchases bills)
+        # Treat all bills the same way
         unpaid_bills = db.query(Bill).filter(
             Bill.client_id == db_account.client_id,
             Bill.status != "paid"
         ).order_by(Bill.created_at).all()
 
-        # Calculate current total from bills (after removing outside purchases)
+        # Calculate current total from ALL bills
         bills_total_amount = sum(
             bill.total_amount for bill in unpaid_bills) if unpaid_bills else Decimal('0.00')
 
         # CASE 1: new_total_remaining > bills_total_amount
-        # Client made manual purchases outside the system
+        # Client made manual purchases outside the system - need to create a new bill
         if new_total_remaining > bills_total_amount:
             # Calculate the difference (outside purchases amount)
-            # This is now correct because we deleted old outside purchase bills first
             outside_purchase_amount = new_total_remaining - bills_total_amount
 
-            # ALWAYS CREATE A NEW BILL
-            # Generate unique bill number for outside purchases
+            # Create a NEW bill for the outside purchases
+            # Generate unique bill number
             # Format: Achats Hors Système - YYYYMMDD - UNIQUEID
             date_str = datetime.now().strftime('%Y%m%d')
             unique_id = str(uuid.uuid4())[:8].upper()  # First 8 chars of UUID
             bill_number = f"Achats Hors Système - {date_str} - {unique_id}"
 
-            # Ensure uniqueness (very unlikely to collide, but just in case)
+            # Ensure uniqueness
             counter = 1
             original_bill_number = bill_number
             while db.query(Bill).filter(Bill.bill_number == bill_number).first():
@@ -382,7 +370,7 @@ def update_client_account(
             )
             db.add(outside_bill)
 
-            # Reset all regular bills to unpaid (no payment applied)
+            # Reset ALL bills (regular + outside) to unpaid (no payment applied)
             for bill in unpaid_bills:
                 bill.total_paid = Decimal('0.00')
                 bill.total_remaining = bill.total_amount
@@ -390,13 +378,13 @@ def update_client_account(
 
             db.flush()
 
-            # Now recalculate with the new bill included
+            # Recalculate with the new bill included
             all_unpaid_bills = db.query(Bill).filter(
                 Bill.client_id == db_account.client_id,
                 Bill.status != "paid"
             ).all()
 
-            # Set total_paid to 0 (not negative) when there are outside purchases
+            # Update account
             db_account.total_amount = sum(
                 bill.total_amount for bill in all_unpaid_bills)
             db_account.total_paid = Decimal('0.00')
@@ -406,21 +394,20 @@ def update_client_account(
         # CASE 2: new_total_remaining <= bills_total_amount
         # Normal case - calculate payment from remaining
         else:
-            # Outside bills already deleted in STEP 1
-
             # Calculate how much has been paid
             total_paid_amount = bills_total_amount - new_total_remaining
 
             # Ensure total_paid is never negative
             total_paid_amount = max(Decimal('0.00'), total_paid_amount)
 
-            # Reset all bills to unpaid first
+            # Reset ALL bills to unpaid first (regular + outside bills)
             for bill in unpaid_bills:
                 bill.total_paid = Decimal('0.00')
                 bill.total_remaining = bill.total_amount
                 bill.status = "not paid"
 
-            # Apply payment to bills in order (oldest first)
+            # Apply payment to ALL bills in order (oldest first)
+            # This includes outside purchase bills too
             remaining_to_apply = total_paid_amount
 
             for bill in unpaid_bills:
