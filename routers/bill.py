@@ -663,8 +663,8 @@ def get_my_bills(
 
     return result
 
-# count all my bills
 
+# count all my bills
 
 @router.get("/my-bills/count")
 def count_my_bills(
@@ -674,6 +674,30 @@ def count_my_bills(
     """Obtenir le nombre total de factures du client connecté"""
 
     count = db.query(Bill).filter(Bill.client_id == current_client.id).count()
+
+    return {"count": count}
+
+# count all my bills this month
+
+
+@router.get("/my-bills/count/month")
+def count_my_bills(
+    current_client=Depends(get_current_client),
+    db: Session = Depends(get_db)
+):
+    """Obtenir le nombre total de factures du client connecté pour le mois en cours"""
+
+    # Get current month and year
+    current_date = datetime.now()
+    current_month = current_date.month
+    current_year = current_date.year
+
+    # Count bills for the current month
+    count = db.query(Bill).filter(
+        Bill.client_id == current_client.id,
+        extract('month', Bill.created_at) == current_month,
+        extract('year', Bill.created_at) == current_year
+    ).count()
 
     return {"count": count}
 
