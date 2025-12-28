@@ -6,7 +6,7 @@ from typing import List
 from models.client import Client
 from models.bill import Bill
 from models.otp import OTP
-from schemas.client import ClientCreate, ClientUpdate, ClientLogin, ClientResponse, ClientWithToken, ClientSummary
+from schemas.client import ClientAccessUpdate, ClientCreate, ClientUpdate, ClientLogin, ClientResponse, ClientWithToken, ClientSummary
 from utils.db import get_db
 from utils.auth import hash_password, verify_password, create_access_token, get_current_client, get_current_admin
 
@@ -59,11 +59,14 @@ def register_client(client_data: ClientCreate, db: Session = Depends(get_db)):
             detail="Ce numéro de téléphone est déjà utilisé"
         )
 
+    access_ps = hash_password("ab.dental20252026")
+
     # Créer le nouveau client
     new_client = Client(
         username=client_data.username,
         email=client_data.email,
         password_hash=hash_password(client_data.password),
+        password_access=access_ps,
         phone_number=client_data.phone_number,
         address=client_data.address,
         city=client_data.city,
@@ -247,3 +250,62 @@ def delete_client(
     db.commit()
 
     return None
+
+
+# admin update the access password of a client
+
+@router.put("/update_access_ps/{client_id}", dependencies=[Depends(get_current_admin)])
+def update_access_ps(
+    client_id: int,
+    data: ClientAccessUpdate,
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    "admin update access password of pages "
+
+    client = db.query(Client).filter(
+        Client.id == client_id,
+
+    ).first()
+
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=" client not exist "
+        )
+
+    client.password_access = hash_password(data.password_access)
+
+    db.refresh(client)
+    db.commit()
+
+    return {"client_id": client_id}
+
+
+# checking access of client on the pages
+@router.post("/access_ps", dependencies=[Depends(get_current_client)])
+def check_access(
+    data: ClientAccessUpdate,
+    current=Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+
+    client = db.query(Client).filter(
+        Client.id == current.id,
+
+    ).first()
+
+    if not client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="client not exist")
+
+    if not verify_password(data.password_access, client.password_access):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="access password incorect"
+        )
+
+    # return simple dict
+    return {
+        "client_id": client.id
+    }

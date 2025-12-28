@@ -17,7 +17,7 @@ class ClientBase(BaseModel):
 
 class ClientCreate(ClientBase):
     password: str = Field(..., min_length=8)
-
+    # password_access: str = Field(..., min_length=8)
 # Client Update Schema
 
 
@@ -28,9 +28,14 @@ class ClientUpdate(BaseModel):
     address: Optional[str] = Field(None, max_length=255)
     city: Optional[str] = Field(None, max_length=100)
     password: Optional[str] = Field(None, min_length=8)
+    password_access: Optional[str] = Field(None, min_length=4)
     is_active: Optional[bool] = None
 
 # Client Login Schema
+
+
+class ClientAccessUpdate(BaseModel):
+    password_access: Optional[str] = Field(None, min_length=4)
 
 
 class ClientLogin(BaseModel):

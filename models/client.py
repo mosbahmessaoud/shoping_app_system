@@ -19,6 +19,8 @@ class Client(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True)
 
+    password_access = Column(String(255), nullable=True)
+
     # Relationships
     bills = relationship("Bill", back_populates="client",
                          cascade="all, delete-orphan")
