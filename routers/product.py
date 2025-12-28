@@ -778,6 +778,7 @@ def get_product_detailed_statistics(
     return {
         'product_id': product_id,
         'product_name': product.name,
+        'barcode': product.barcode,
         'today': {
             'total_quantity': int(daily_total.quantity or 0),
             'total_revenue': float(daily_total.revenue or 0),
