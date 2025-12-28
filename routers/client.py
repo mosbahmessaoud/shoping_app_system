@@ -59,7 +59,7 @@ def register_client(client_data: ClientCreate, db: Session = Depends(get_db)):
             detail="Ce numéro de téléphone est déjà utilisé"
         )
 
-    access_ps = hash_password("ab.dental20252026")
+    access_ps = hash_password("ab.dental25")
 
     # Créer le nouveau client
     new_client = Client(
@@ -102,7 +102,7 @@ def login_client(login_data: ClientLogin, db: Session = Depends(get_db)):
         data={"sub": str(client.id), "type": "client"})
 
     if not client.password_access:
-        access_ps = hash_password("ab.dental20252026")
+        access_ps = hash_password("ab.dental25")
         client.password_access = access_ps
 
         db.commit()
