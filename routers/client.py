@@ -283,8 +283,8 @@ def update_access_ps(
 
     client.password_access = hash_password(data.password_access)
 
-    db.refresh(client)
     db.commit()
+    db.refresh(client)
 
     return {"client_id": client_id}
 
