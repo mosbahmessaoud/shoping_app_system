@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List
 from models import notification
@@ -110,8 +111,10 @@ def get_admin_notifications(
 
     query = db.query(Notification).filter(
         Notification.admin_id == admin_id,
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert",
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )
     )
 
     if is_sent is not None:
@@ -192,29 +195,39 @@ def get_notification_summary(
 
     total_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert",
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )
     ).count()
     sent_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
         Notification.is_sent == True,
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert").count()
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )).count()
     pending_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
         Notification.is_sent == False,
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert").count()
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )).count()
     email_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
         Notification.channel == "email",
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert").count()
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )).count()
     whatsapp_notifications = db.query(Notification).filter(
         Notification.admin_id == 1,
         Notification.channel == "whatsapp",
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert").count()
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )).count()
 
     return NotificationSummary(
         total_notifications=total_notifications,
@@ -390,12 +403,16 @@ def delete_all_notifications(
 
     # Get count before deletion for feedback
     notification_count = db.query(Notification).filter(
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert",
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )
     ).count()
     notifications = db.query(Notification).filter(
-        Notification.notification_type == "new_bill",
-        Notification.notification_type == "stock_alert",
+        or_(
+            Notification.notification_type == "new_bill",
+            Notification.notification_type == "stock_alert"
+        )
     ).all()
 
     if notification_count == 0:
