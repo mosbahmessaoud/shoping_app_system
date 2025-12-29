@@ -91,7 +91,7 @@ def create_product(
     # Handle multiple variants
     variants_json = None
     if product_data.variants:
-        variants_json = json.dumps(product_data.variants.dict())
+        variants_json = json.dumps(product_data.variants.model_dump())
 
     # FIXED: Exclude 'variants' to avoid duplicate argument error
     product_dict = product_data.dict(
@@ -172,10 +172,10 @@ def update_product(
         update_data['image_urls'] = json.dumps(new_urls)
 
     # FIXED: Handle variants update properly
+    # FIXED: Handle variants update properly
     if 'variants' in update_data:
         if update_data['variants'] is not None:
-            update_data['variants'] = json.dumps(
-                update_data['variants'].dict())
+            update_data['variants'] = json.dumps(update_data['variants'])
         # If variants is explicitly set to None, it will clear the variants
 
     for field, value in update_data.items():

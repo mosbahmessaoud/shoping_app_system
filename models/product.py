@@ -25,7 +25,7 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True)
 
-    is_sold = Column(Boolean, default=False)  # new
+    is_sold = Column(Boolean, default=False)  # new 
 
     # NEW: Store product variants/options as JSON
 
