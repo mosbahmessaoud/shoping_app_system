@@ -1252,7 +1252,7 @@ def delete_bill_by_id(
     # delete all paid bills
 
 
-@router.delete("/delete/paid", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
+@router.delete("/delete/paid", dependencies=[Depends(get_current_admin)])
 def delete_all_paid_bills(
     db: Session = Depends(get_db)
 ):
