@@ -3,21 +3,18 @@ from datetime import datetime
 from typing import Optional, List
 from decimal import Decimal
 
+
 # Bill Item Schema (for creating bill)
-# Add this new schema after BillItemCreate
-
-
 class BillItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(..., gt=0)
     selected_variants: Optional[dict] = None  # NEW: Store variant selections
 
-# Update BillItemResponse to include variants
 
-
+# Update BillItemResponse to include variants and make product_id optional
 class BillItemResponse(BaseModel):
     id: int
-    product_id: int
+    product_id: Optional[int]  # Changed to Optional to handle deleted products
     product_name: str
     unit_price: Decimal
     quantity: int
@@ -27,27 +24,24 @@ class BillItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
 # Bill Create Schema
-
-
 class BillCreate(BaseModel):
     items: List[BillItemCreate] = Field(..., min_length=1)
 
+
 # Bill Base Schema
-
-
 class BillBase(BaseModel):
     bill_number: str
     total_amount: Decimal
     total_paid: Decimal
     total_remaining: Decimal
     status: str  # "paid" or "not paid"
-    # Make it optional temporarily
-    delivery_status: Optional[str] = "not_delivered"
+    delivery_status: Optional[str] = "not_delivered"  # Make it optional
+
 
 # Bill Response Schema
-
-
 class BillResponse(BillBase):
     id: int
     client_id: int
@@ -58,18 +52,16 @@ class BillResponse(BillBase):
     class Config:
         from_attributes = True
 
+
 # Bill with Items (detailed view)
-
-
 class BillWithItems(BillResponse):
     items: List[BillItemResponse] = []
 
     class Config:
         from_attributes = True
 
+
 # Bill with Client Info (for admin view)
-
-
 class BillWithClient(BillWithItems):
     client_name: str
     client_email: str
@@ -78,9 +70,8 @@ class BillWithClient(BillWithItems):
     class Config:
         from_attributes = True
 
+
 # Bill Summary
-
-
 class BillSummary(BaseModel):
     total_bills: int
     total_revenue: Decimal
