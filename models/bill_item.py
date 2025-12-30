@@ -10,7 +10,8 @@ class BillItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bill_id = Column(Integer, ForeignKey("bills.id"), nullable=False)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"),
+                        nullable=True)  # change nullable to true
     # Store product name at time of purchase
     product_name = Column(String(200), nullable=False)
     unit_price = Column(Numeric(15, 2), nullable=False)

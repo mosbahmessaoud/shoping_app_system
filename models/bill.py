@@ -26,7 +26,7 @@ class Bill(Base):
     # Relationships
     client = relationship("Client", back_populates="bills")
     bill_items = relationship(
-        "BillItem", back_populates="bill", cascade="all, delete-orphan")
+        "BillItem", back_populates="bill") # i have removed the cascade , cascade="all, delete-orphan"
     payments = relationship(
         "Payment", back_populates="bill", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="bill")
