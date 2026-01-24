@@ -233,7 +233,7 @@ def get_product_count(db: Session = Depends(get_db)):
 @router.get("/", response_model=List[ProductWithCategory])
 def get_all_products(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 3000,
     category_id: Optional[int] = None,
     is_active: Optional[bool] = None,
     db: Session = Depends(get_db)

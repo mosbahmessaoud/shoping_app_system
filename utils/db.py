@@ -107,6 +107,9 @@ def init_db():
     from models.stock_alert import StockAlert
     from models.notification import Notification
 
+
+
+
     print("🔄 Création des tables de la base de données PostgreSQL...")
     try:
         Base.metadata.create_all(bind=engine)
