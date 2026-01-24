@@ -230,6 +230,47 @@ def get_product_count(db: Session = Depends(get_db)):
     return {"count": count}
 
 
+# Add this new router after the existing get_all_products function (around line 215)
+
+@router.get("/all/unfiltered", response_model=List[ProductWithCategory])
+def get_all_products_unfiltered(
+    db: Session = Depends(get_db)
+):
+    """Get ALL products without any filters - returns complete product table"""
+
+    products = db.query(Product).all()
+    result = []
+    for p in products:
+        variants_data = None
+        if p.variants:
+            try:
+                variants_dict = json.loads(p.variants)
+                variants_data = ProductVariant(**variants_dict)
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        result.append(ProductWithCategory(
+            id=p.id,
+            name=p.name,
+            description=p.description,
+            price=p.price,
+            quantity_in_stock=p.quantity_in_stock,
+            minimum_stock_level=p.minimum_stock_level,
+            image_urls=json.loads(p.image_urls) if p.image_urls else [],
+            category_id=p.category_id,
+            admin_id=p.admin_id,
+            barcode=p.barcode,
+            variants=variants_data,
+            is_sold=p.is_sold,
+            is_active=p.is_active,
+            created_at=p.created_at,
+            updated_at=p.updated_at,
+            category_name=p.category.name
+        ))
+
+    return result
+
+
 @router.get("/", response_model=List[ProductWithCategory])
 def get_all_products(
     skip: int = 0,
