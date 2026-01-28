@@ -173,10 +173,10 @@ def get_current_client(token: str = Depends(oauth2_scheme), db: Session = Depend
     if client is None:
         raise credentials_exception
 
-    if not client.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Votre compte est désactivé"
-        )
+    # if not client.is_active:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Votre compte est désactivé"
+    #     )
 
     return client
