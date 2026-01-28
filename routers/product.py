@@ -969,7 +969,6 @@ async def bulk_upload_products(
     - price (required)
     - quantity_in_stock (required)
     - minimum_stock_level (optional, default: 10)
-    - category_name (required - will lookup category by name)
     - barcode (optional - will generate if empty)
     - is_active (optional, default: True)
     """
@@ -987,7 +986,7 @@ async def bulk_upload_products(
 
         # Validate required columns
         required_columns = ['name', 'price',
-                            'quantity_in_stock', 'category_name']
+                            'quantity_in_stock']
         missing_columns = [
             col for col in required_columns if col not in df.columns]
 
@@ -1016,18 +1015,6 @@ async def bulk_upload_products(
                     results['errors'].append({
                         'row': index + 2,  # Excel rows start at 1, header is row 1
                         'error': 'Empty product name'
-                    })
-                    continue
-
-                # Get or validate category
-                category_name = str(row['category_name']).strip().lower()
-                category_id = categories.get(category_name)
-
-                if not category_id:
-                    results['skipped'] += 1
-                    results['errors'].append({
-                        'row': index + 2,
-                        'error': f'Category "{row["category_name"]}" not found'
                     })
                     continue
 
@@ -1072,13 +1059,13 @@ async def bulk_upload_products(
                     'price': float(row['price']),
                     'quantity_in_stock': int(row['quantity_in_stock']),
                     'minimum_stock_level': int(row['minimum_stock_level']) if 'minimum_stock_level' in df.columns and not pd.isna(row['minimum_stock_level']) else 10,
-                    'category_id': category_id,
+                    'category_id': 1,
                     'barcode': barcode,
                     'is_active': bool(row['is_active']) if 'is_active' in df.columns and not pd.isna(row['is_active']) else True,
                     'is_sold': False,
                     'image_urls': json.dumps([]),
                     'variants': None,
-                    'admin_id': current_admin.id
+                    'admin_id': 1
                 }
 
                 # Validate price and quantity
