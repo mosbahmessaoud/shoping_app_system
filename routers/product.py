@@ -1,3 +1,6 @@
+from io import BytesIO
+from fastapi import UploadFile, File
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -944,3 +947,186 @@ def get_product_purchases_timeline(
                 for item in results
             ]
         }
+
+
+# Add these imports at the top
+
+# Add this new router after your existing routes
+
+@router.post("/bulk-upload", response_model=dict,
+             dependencies=[Depends(get_current_admin)])
+async def bulk_upload_products(
+    file: UploadFile = File(...),
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk upload products from Excel file (admin only)
+
+    Expected Excel columns:
+    - name (required)
+    - description (optional)
+    - price (required)
+    - quantity_in_stock (required)
+    - minimum_stock_level (optional, default: 10)
+    - category_name (required - will lookup category by name)
+    - barcode (optional - will generate if empty)
+    - is_active (optional, default: True)
+    """
+
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only Excel files (.xlsx, .xls) are allowed"
+        )
+
+    try:
+        # Read Excel file
+        contents = await file.read()
+        df = pd.read_excel(BytesIO(contents))
+
+        # Validate required columns
+        required_columns = ['name', 'price',
+                            'quantity_in_stock', 'category_name']
+        missing_columns = [
+            col for col in required_columns if col not in df.columns]
+
+        if missing_columns:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing required columns: {', '.join(missing_columns)}"
+            )
+
+        results = {
+            'total_rows': len(df),
+            'added': 0,
+            'skipped': 0,
+            'errors': []
+        }
+
+        # Get all categories for lookup
+        categories = {
+            cat.name.lower(): cat.id for cat in db.query(Category).all()}
+
+        for index, row in df.iterrows():
+            try:
+                # Skip empty rows
+                if pd.isna(row['name']) or str(row['name']).strip() == '':
+                    results['skipped'] += 1
+                    results['errors'].append({
+                        'row': index + 2,  # Excel rows start at 1, header is row 1
+                        'error': 'Empty product name'
+                    })
+                    continue
+
+                # Get or validate category
+                category_name = str(row['category_name']).strip().lower()
+                category_id = categories.get(category_name)
+
+                if not category_id:
+                    results['skipped'] += 1
+                    results['errors'].append({
+                        'row': index + 2,
+                        'error': f'Category "{row["category_name"]}" not found'
+                    })
+                    continue
+
+                # Handle barcode
+                barcode = None
+                if 'barcode' in df.columns and not pd.isna(row['barcode']):
+                    barcode = str(row['barcode']).strip()
+
+                    # Check if barcode already exists
+                    if barcode:
+                        existing = db.query(Product).filter(
+                            Product.barcode == barcode).first()
+                        if existing:
+                            results['skipped'] += 1
+                            results['errors'].append({
+                                'row': index + 2,
+                                'error': f'Barcode "{barcode}" already exists for product: {existing.name}'
+                            })
+                            continue
+
+                # Generate barcode if empty
+                if not barcode:
+                    import random
+                    while True:
+                        barcode_base = ''.join(
+                            [str(random.randint(0, 9)) for _ in range(12)])
+                        odd_sum = sum(int(barcode_base[i])
+                                      for i in range(0, 12, 2))
+                        even_sum = sum(int(barcode_base[i])
+                                       for i in range(1, 12, 2))
+                        total = odd_sum + (even_sum * 3)
+                        check_digit = (10 - (total % 10)) % 10
+                        barcode = barcode_base + str(check_digit)
+
+                        if not db.query(Product).filter(Product.barcode == barcode).first():
+                            break
+
+                # Prepare product data
+                product_data = {
+                    'name': str(row['name']).strip(),
+                    'description': str(row['description']).strip() if 'description' in df.columns and not pd.isna(row['description']) else None,
+                    'price': float(row['price']),
+                    'quantity_in_stock': int(row['quantity_in_stock']),
+                    'minimum_stock_level': int(row['minimum_stock_level']) if 'minimum_stock_level' in df.columns and not pd.isna(row['minimum_stock_level']) else 10,
+                    'category_id': category_id,
+                    'barcode': barcode,
+                    'is_active': bool(row['is_active']) if 'is_active' in df.columns and not pd.isna(row['is_active']) else True,
+                    'is_sold': False,
+                    'image_urls': json.dumps([]),
+                    'variants': None,
+                    'admin_id': current_admin.id
+                }
+
+                # Validate price and quantity
+                if product_data['price'] <= 0:
+                    results['skipped'] += 1
+                    results['errors'].append({
+                        'row': index + 2,
+                        'error': 'Price must be greater than 0'
+                    })
+                    continue
+
+                if product_data['quantity_in_stock'] < 0:
+                    results['skipped'] += 1
+                    results['errors'].append({
+                        'row': index + 2,
+                        'error': 'Quantity cannot be negative'
+                    })
+                    continue
+
+                # Create product
+                new_product = Product(**product_data)
+                db.add(new_product)
+                db.flush()  # Get ID without committing
+
+                # Check and create stock alert if needed
+                check_and_create_stock_alert(db, new_product)
+
+                results['added'] += 1
+
+            except Exception as e:
+                results['skipped'] += 1
+                results['errors'].append({
+                    'row': index + 2,
+                    'error': str(e)
+                })
+
+        # Commit all changes at once
+        db.commit()
+
+        return {
+            'success': True,
+            'message': f'Processed {results["total_rows"]} rows',
+            'results': results
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing file: {str(e)}"
+        )
