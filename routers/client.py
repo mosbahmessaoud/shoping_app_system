@@ -92,11 +92,11 @@ def login_client(login_data: ClientLogin, db: Session = Depends(get_db)):
             detail="Email ou mot de passe incorrect"
         )
 
-    if not client.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Votre compte est désactivé"
-        )
+    # if not client.is_active:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Votre compte est désactivé"
+    #     )
 
     access_token = create_access_token(
         data={"sub": str(client.id), "type": "client"})
