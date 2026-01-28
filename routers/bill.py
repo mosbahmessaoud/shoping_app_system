@@ -221,16 +221,16 @@ def create_bill(
 
     if user:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail="Votre compte est actuellement inactif. "
         )
 
     # Vérification du statut du compte
-    if current_client.is_active == False:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Votre compte est actuellement inactif. Veuillez effectuer votre paiement afin qu'un administrateur puisse l'activer."
-        )
+    # if current_client.is_active == False:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Votre compte est actuellement inactif. Veuillez effectuer votre paiement afin qu'un administrateur puisse l'activer."
+    #     )
     # Générer un numéro de facture unique
     bill_count = db.query(Bill).count()
     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
