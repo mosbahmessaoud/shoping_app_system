@@ -11,7 +11,7 @@ class Product(Base):
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     admin_id = Column(Integer, ForeignKey("admins.id"), nullable=False)
     name = Column(String(200), nullable=False, index=True)
-    description = Column(String(1000), nullable=True)
+    description = Column(Text, nullable=True)
     price = Column(Numeric(15, 2), nullable=False)
     quantity_in_stock = Column(Integer, nullable=False, default=0)
     minimum_stock_level = Column(Integer, nullable=False, default=10)
@@ -25,7 +25,7 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True)
 
-    is_sold = Column(Boolean, default=False)  # new 
+    is_sold = Column(Boolean, default=False)  # new
 
     # NEW: Store product variants/options as JSON
 

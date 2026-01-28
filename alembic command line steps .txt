@@ -1,37 +1,21 @@
 PS D:\DEV\shoping_app_project\backend\server> & D:/DEV/shoping_app_project/backend/server/venv/Scripts/Activate.ps1
 (venv) PS D:\DEV\shoping_app_project\backend\server> # 1. Check current state
 (venv) PS D:\DEV\shoping_app_project\backend\server> alembic current
-☁️ Using production database: localhost:5432/Ecom_app
-🔴 Alembic using PRODUCTION database
-📊 Alembic Database: postgresql://postgres:****@localhost:5432/Ecom_app
-INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-INFO  [alembic.runtime.migration] Will assume transactional DDL.
-f1bf3b2ab481
+
 (venv) PS D:\DEV\shoping_app_project\backend\server> # Output: f1bf3b2ab481
 (venv) PS D:\DEV\shoping_app_project\backend\server> 
 (venv) PS D:\DEV\shoping_app_project\backend\server> # 2. Check what migrations exist
 (venv) PS D:\DEV\shoping_app_project\backend\server> alembic history
-f1bf3b2ab481 -> 8e58004247ae (head), add code bar option
-<base> -> f1bf3b2ab481, Initial migration
+
 (venv) PS D:\DEV\shoping_app_project\backend\server> # Shows: f1bf3b2ab481 -> 8e58004247ae (head)
 (venv) PS D:\DEV\shoping_app_project\backend\server> 
 (venv) PS D:\DEV\shoping_app_project\backend\server> # 3. Apply pending migration
 (venv) PS D:\DEV\shoping_app_project\backend\server> alembic upgrade head
-☁️ Using production database: localhost:5432/Ecom_app
-🔴 Alembic using PRODUCTION database
-📊 Alembic Database: postgresql://postgres:****@localhost:5432/Ecom_app
-INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-INFO  [alembic.runtime.migration] Will assume transactional DDL.
-INFO  [alembic.runtime.migration] Running upgrade f1bf3b2ab481 -> 8e58004247ae, add code bar option
+
 (venv) PS D:\DEV\shoping_app_project\backend\server> 
 (venv) PS D:\DEV\shoping_app_project\backend\server> # 4. Verify you're up to date
 (venv) PS D:\DEV\shoping_app_project\backend\server> alembic current
-☁️ Using production database: localhost:5432/Ecom_app
-🔴 Alembic using PRODUCTION database
-📊 Alembic Database: postgresql://postgres:****@localhost:5432/Ecom_app
-INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-INFO  [alembic.runtime.migration] Will assume transactional DDL.
-8e58004247ae (head)
+
 (venv) PS D:\DEV\shoping_app_project\backend\server> # Should output: 8e58004247ae (head)
 (venv) PS D:\DEV\shoping_app_project\backend\server> alembic revision --autogenerate -m "add is_sold column to products"
 ☁️ Using production database: localhost:5432/Ecom_app

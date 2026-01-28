@@ -43,7 +43,7 @@ class ProductVariant(BaseModel):
 
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=3000)
-    description: Optional[str] = Field(None, max_length=900000)
+    description: Optional[str] = Field(None, max_length=999000)
     price: Decimal = Field(..., gt=0, decimal_places=2)
     quantity_in_stock: int = Field(..., ge=0)
     minimum_stock_level: int = Field(default=10, ge=0)
@@ -83,7 +83,7 @@ class ProductCreate(ProductBase):
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=3000)
-    description: Optional[str] = Field(None, max_length=900000)
+    description: Optional[str] = Field(None, max_length=999000)
     price: Optional[Decimal] = Field(None, gt=0, decimal_places=2)
     quantity_in_stock: Optional[int] = Field(None, ge=0)
     minimum_stock_level: Optional[int] = Field(None, ge=0)
