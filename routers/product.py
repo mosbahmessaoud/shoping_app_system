@@ -1059,7 +1059,7 @@ async def bulk_upload_products(
                     'price': float(row['price']),
                     'quantity_in_stock': int(row['quantity_in_stock']),
                     'minimum_stock_level': int(row['minimum_stock_level']) if 'minimum_stock_level' in df.columns and not pd.isna(row['minimum_stock_level']) else 10,
-                    'category_id': 1,
+                    'category_id': 2,
                     'barcode': barcode,
                     'is_active': bool(row['is_active']) if 'is_active' in df.columns and not pd.isna(row['is_active']) else True,
                     'is_sold': False,
