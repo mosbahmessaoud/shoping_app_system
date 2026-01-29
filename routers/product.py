@@ -951,7 +951,211 @@ def get_product_purchases_timeline(
 
 # Add these imports at the top
 
-# Add this new router after your existing routes
+# # Add this new router after your existing routes
+# @router.post("/bulk-upload", response_model=dict,
+#              dependencies=[Depends(get_current_admin)])
+# async def bulk_upload_products(
+#     file: UploadFile = File(...),
+#     current_admin=Depends(get_current_admin),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     Bulk upload products from Excel file (admin only)
+
+#     Expected Excel columns:
+#     - name (required)
+#     - description (optional)
+#     - price (required)
+#     - quantity_in_stock (required)
+#     - minimum_stock_level (optional, default: 10)
+#     - barcode (optional - will generate if empty)
+#     - is_active (optional, default: True)
+#     """
+
+#     if not file.filename.endswith(('.xlsx', '.xls')):
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="Only Excel files (.xlsx, .xls) are allowed"
+#         )
+
+#     try:
+#         # Read Excel file
+#         contents = await file.read()
+#         df = pd.read_excel(BytesIO(contents))
+
+#         # Validate required columns
+#         required_columns = ['name', 'price', 'quantity_in_stock']
+#         missing_columns = [
+#             col for col in required_columns if col not in df.columns]
+
+#         if missing_columns:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"Missing required columns: {', '.join(missing_columns)}"
+#             )
+
+#         results = {
+#             'total_rows': len(df),
+#             'added': 0,
+#             'skipped': 0,
+#             'errors': []
+#         }
+
+#         # Get all categories for lookup
+#         categories = {
+#             cat.name.lower(): cat.id for cat in db.query(Category).all()}
+
+#         # Get or create default category
+#         # default_category = db.query(Category).first()
+#         # if not default_category:
+#         #     # Create a default category if none exists
+#         #     default_category = Category(
+#         #         name="Uncategorized",
+#         #         description="Default category for bulk uploads"
+#         #     )
+#         #     db.add(default_category)
+#         #     db.flush()
+
+#         # default_category_id = default_category.id
+
+#         for index, row in df.iterrows():
+#             try:
+#                 # Skip empty rows
+#                 if pd.isna(row['name']) or str(row['name']).strip() == '':
+#                     results['skipped'] += 1
+#                     results['errors'].append({
+#                         'row': index + 2,  # Excel rows start at 1, header is row 1
+#                         'error': 'Empty product name'
+#                     })
+#                     continue
+
+#                 # FIX 1: Check if product name already exists
+#                 product_name = str(row['name']).strip()
+#                 existing_name = db.query(Product).filter(
+#                     Product.name == product_name
+#                 ).first()
+#                 if existing_name:
+#                     results['skipped'] += 1
+#                     results['errors'].append({
+#                         'row': index + 2,
+#                         'error': f'Product with name "{product_name}" already exists (ID: {existing_name.id})'
+#                     })
+#                     continue
+
+#                 # FIX 2: Handle barcode properly
+#                 barcode = None
+#                 if 'barcode' in df.columns and not pd.isna(row['barcode']):
+#                     # Define barcode_value FIRST
+#                     barcode_value = row['barcode']
+#                     # Convert to string, removing decimal if it's a float
+#                     if isinstance(barcode_value, float):
+#                         barcode = str(int(barcode_value))
+#                     else:
+#                         barcode = str(barcode_value).strip()
+
+#                     # Check if barcode already exists
+#                     if barcode:
+#                         existing_barcode = db.query(Product).filter(
+#                             Product.barcode == barcode
+#                         ).first()
+#                         if existing_barcode:
+#                             results['skipped'] += 1
+#                             results['errors'].append({
+#                                 'row': index + 2,
+#                                 'error': f'Barcode "{barcode}" already exists for product: {existing_barcode.name}'
+#                             })
+#                             continue
+
+#                 # Generate barcode if empty
+#                 if not barcode:
+#                     import random
+#                     while True:
+#                         barcode_base = ''.join(
+#                             [str(random.randint(0, 9)) for _ in range(12)])
+#                         odd_sum = sum(int(barcode_base[i])
+#                                       for i in range(0, 12, 2))
+#                         even_sum = sum(int(barcode_base[i])
+#                                        for i in range(1, 12, 2))
+#                         total = odd_sum + (even_sum * 3)
+#                         check_digit = (10 - (total % 10)) % 10
+#                         barcode = barcode_base + str(check_digit)
+
+#                         if not db.query(Product).filter(Product.barcode == barcode).first():
+#                             break
+
+#                 # Handle category
+#                 # category_id = default_category_id
+#                 # if 'category_name' in df.columns and not pd.isna(row['category_name']):
+#                 #     category_name = str(row['category_name']).strip().lower()
+#                 #     if category_name in categories:
+#                 #         category_id = categories[category_name]
+
+#                 # Prepare product data
+#                 product_data = {
+#                     'name': product_name,
+#                     'description': str(row['description']).strip() if 'description' in df.columns and not pd.isna(row['description']) else None,
+#                     'price': float(row['price']),
+#                     'quantity_in_stock': int(row['quantity_in_stock']),
+#                     'minimum_stock_level': int(row['minimum_stock_level']) if 'minimum_stock_level' in df.columns and not pd.isna(row['minimum_stock_level']) else 10,
+#                     'category_id': 2,
+#                     'barcode': barcode,
+#                     'is_active': bool(row['is_active']) if 'is_active' in df.columns and not pd.isna(row['is_active']) else True,
+#                     'is_sold': False,
+#                     'image_urls': json.dumps([]),
+#                     'variants': None,
+#                     'admin_id': current_admin.id  # Use actual current admin
+#                 }
+
+#                 # Validate price and quantity
+#                 if product_data['price'] <= 0:
+#                     results['skipped'] += 1
+#                     results['errors'].append({
+#                         'row': index + 2,
+#                         'error': 'Price must be greater than 0'
+#                     })
+#                     continue
+
+#                 if product_data['quantity_in_stock'] < 0:
+#                     results['skipped'] += 1
+#                     results['errors'].append({
+#                         'row': index + 2,
+#                         'error': 'Quantity cannot be negative'
+#                     })
+#                     continue
+
+#                 # Create product
+#                 new_product = Product(**product_data)
+#                 db.add(new_product)
+#                 db.flush()  # Get ID without committing
+
+#                 # Check and create stock alert if needed
+#                 check_and_create_stock_alert(db, new_product)
+
+#                 results['added'] += 1
+
+#             except Exception as e:
+#                 results['skipped'] += 1
+#                 results['errors'].append({
+#                     'row': index + 2,
+#                     'error': str(e)
+#                 })
+#                 # Continue processing other rows
+
+#         # Commit all changes at once
+#         db.commit()
+
+#         return {
+#             'success': True,
+#             'message': f'Processed {results["total_rows"]} rows',
+#             'results': results
+#         }
+
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Error processing file: {str(e)}"
+#         )
 @router.post("/bulk-upload", response_model=dict,
              dependencies=[Depends(get_current_admin)])
 async def bulk_upload_products(
@@ -969,7 +1173,10 @@ async def bulk_upload_products(
     - quantity_in_stock (required)
     - minimum_stock_level (optional, default: 10)
     - barcode (optional - will generate if empty)
+    - category_name (optional - will use default if not found)
     - is_active (optional, default: True)
+    - is_sold (optional, default: False)
+    - variants (optional - Simple format: "size: S, M, L | color: Red, Blue")
     """
 
     if not file.filename.endswith(('.xlsx', '.xls')):
@@ -977,6 +1184,60 @@ async def bulk_upload_products(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only Excel files (.xlsx, .xls) are allowed"
         )
+
+    def parse_simple_variants(variants_str: str) -> Optional[str]:
+        """
+        Parse simple variant format into JSON
+        Input: "size: S, M, L, XL | color: Red, Blue, Black"
+        Output: JSON string for database storage
+        """
+        try:
+            if not variants_str or variants_str.strip() == '':
+                return None
+
+            variants_list = []
+
+            # Split by pipe (|) to get each variant type
+            variant_groups = variants_str.split('|')
+
+            for group in variant_groups:
+                group = group.strip()
+                if not group:
+                    continue
+
+                # Split by colon to get type and options
+                if ':' not in group:
+                    raise ValueError(
+                        f"Invalid format: '{group}'. Expected format: 'type: option1, option2'")
+
+                parts = group.split(':', 1)
+                variant_type = parts[0].strip().lower()
+                options_str = parts[1].strip()
+
+                if not variant_type:
+                    raise ValueError("Variant type cannot be empty")
+
+                # Split options by comma
+                options = [opt.strip()
+                           for opt in options_str.split(',') if opt.strip()]
+
+                if not options:
+                    raise ValueError(
+                        f"No options provided for variant type: {variant_type}")
+
+                variants_list.append({
+                    "type": variant_type,
+                    "options": options
+                })
+
+            if not variants_list:
+                return None
+
+            # Return JSON string in the format expected by the database
+            return json.dumps({"variants": variants_list})
+
+        except Exception as e:
+            raise ValueError(f"Invalid variants format: {str(e)}")
 
     try:
         # Read Excel file
@@ -1002,10 +1263,10 @@ async def bulk_upload_products(
         }
 
         # Get all categories for lookup
-        categories = {
-            cat.name.lower(): cat.id for cat in db.query(Category).all()}
+        # categories = {
+        #     cat.name.lower(): cat.id for cat in db.query(Category).all()}
 
-        # Get or create default category
+        # # Get or create default category
         # default_category = db.query(Category).first()
         # if not default_category:
         #     # Create a default category if none exists
@@ -1029,7 +1290,7 @@ async def bulk_upload_products(
                     })
                     continue
 
-                # FIX 1: Check if product name already exists
+                # Check if product name already exists
                 product_name = str(row['name']).strip()
                 existing_name = db.query(Product).filter(
                     Product.name == product_name
@@ -1042,10 +1303,9 @@ async def bulk_upload_products(
                     })
                     continue
 
-                # FIX 2: Handle barcode properly
+                # Handle barcode
                 barcode = None
                 if 'barcode' in df.columns and not pd.isna(row['barcode']):
-                    # Define barcode_value FIRST
                     barcode_value = row['barcode']
                     # Convert to string, removing decimal if it's a float
                     if isinstance(barcode_value, float):
@@ -1083,12 +1343,27 @@ async def bulk_upload_products(
                         if not db.query(Product).filter(Product.barcode == barcode).first():
                             break
 
-                # Handle category
+                # # Handle category
                 # category_id = default_category_id
                 # if 'category_name' in df.columns and not pd.isna(row['category_name']):
                 #     category_name = str(row['category_name']).strip().lower()
                 #     if category_name in categories:
                 #         category_id = categories[category_name]
+
+                # Handle variants with SIMPLE format
+                variants_json = None
+                if 'variants' in df.columns and not pd.isna(row['variants']):
+                    try:
+                        variants_str = str(row['variants']).strip()
+                        if variants_str:
+                            variants_json = parse_simple_variants(variants_str)
+                    except ValueError as e:
+                        results['skipped'] += 1
+                        results['errors'].append({
+                            'row': index + 2,
+                            'error': str(e)
+                        })
+                        continue
 
                 # Prepare product data
                 product_data = {
@@ -1100,10 +1375,10 @@ async def bulk_upload_products(
                     'category_id': 2,
                     'barcode': barcode,
                     'is_active': bool(row['is_active']) if 'is_active' in df.columns and not pd.isna(row['is_active']) else True,
-                    'is_sold': False,
+                    'is_sold': bool(row['is_sold']) if 'is_sold' in df.columns and not pd.isna(row['is_sold']) else False,
                     'image_urls': json.dumps([]),
-                    'variants': None,
-                    'admin_id': current_admin.id  # Use actual current admin
+                    'variants': variants_json,  # Can be None
+                    'admin_id': 1
                 }
 
                 # Validate price and quantity
