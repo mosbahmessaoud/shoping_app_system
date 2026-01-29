@@ -952,7 +952,6 @@ def get_product_purchases_timeline(
 # Add these imports at the top
 
 # Add this new router after your existing routes
-
 @router.post("/bulk-upload", response_model=dict,
              dependencies=[Depends(get_current_admin)])
 async def bulk_upload_products(
@@ -985,8 +984,7 @@ async def bulk_upload_products(
         df = pd.read_excel(BytesIO(contents))
 
         # Validate required columns
-        required_columns = ['name', 'price',
-                            'quantity_in_stock']
+        required_columns = ['name', 'price', 'quantity_in_stock']
         missing_columns = [
             col for col in required_columns if col not in df.columns]
 
@@ -1007,6 +1005,19 @@ async def bulk_upload_products(
         categories = {
             cat.name.lower(): cat.id for cat in db.query(Category).all()}
 
+        # Get or create default category
+        # default_category = db.query(Category).first()
+        # if not default_category:
+        #     # Create a default category if none exists
+        #     default_category = Category(
+        #         name="Uncategorized",
+        #         description="Default category for bulk uploads"
+        #     )
+        #     db.add(default_category)
+        #     db.flush()
+
+        # default_category_id = default_category.id
+
         for index, row in df.iterrows():
             try:
                 # Skip empty rows
@@ -1018,20 +1029,40 @@ async def bulk_upload_products(
                     })
                     continue
 
-                # Handle barcode
+                # FIX 1: Check if product name already exists
+                product_name = str(row['name']).strip()
+                existing_name = db.query(Product).filter(
+                    Product.name == product_name
+                ).first()
+                if existing_name:
+                    results['skipped'] += 1
+                    results['errors'].append({
+                        'row': index + 2,
+                        'error': f'Product with name "{product_name}" already exists (ID: {existing_name.id})'
+                    })
+                    continue
+
+                # FIX 2: Handle barcode properly
                 barcode = None
                 if 'barcode' in df.columns and not pd.isna(row['barcode']):
-                    barcode = str(row['barcode']).strip()
+                    # Define barcode_value FIRST
+                    barcode_value = row['barcode']
+                    # Convert to string, removing decimal if it's a float
+                    if isinstance(barcode_value, float):
+                        barcode = str(int(barcode_value))
+                    else:
+                        barcode = str(barcode_value).strip()
 
                     # Check if barcode already exists
                     if barcode:
-                        existing = db.query(Product).filter(
-                            Product.barcode == barcode).first()
-                        if existing:
+                        existing_barcode = db.query(Product).filter(
+                            Product.barcode == barcode
+                        ).first()
+                        if existing_barcode:
                             results['skipped'] += 1
                             results['errors'].append({
                                 'row': index + 2,
-                                'error': f'Barcode "{barcode}" already exists for product: {existing.name}'
+                                'error': f'Barcode "{barcode}" already exists for product: {existing_barcode.name}'
                             })
                             continue
 
@@ -1052,9 +1083,16 @@ async def bulk_upload_products(
                         if not db.query(Product).filter(Product.barcode == barcode).first():
                             break
 
+                # Handle category
+                # category_id = default_category_id
+                # if 'category_name' in df.columns and not pd.isna(row['category_name']):
+                #     category_name = str(row['category_name']).strip().lower()
+                #     if category_name in categories:
+                #         category_id = categories[category_name]
+
                 # Prepare product data
                 product_data = {
-                    'name': str(row['name']).strip(),
+                    'name': product_name,
                     'description': str(row['description']).strip() if 'description' in df.columns and not pd.isna(row['description']) else None,
                     'price': float(row['price']),
                     'quantity_in_stock': int(row['quantity_in_stock']),
@@ -1065,7 +1103,7 @@ async def bulk_upload_products(
                     'is_sold': False,
                     'image_urls': json.dumps([]),
                     'variants': None,
-                    'admin_id': 1
+                    'admin_id': current_admin.id  # Use actual current admin
                 }
 
                 # Validate price and quantity
@@ -1101,6 +1139,7 @@ async def bulk_upload_products(
                     'row': index + 2,
                     'error': str(e)
                 })
+                # Continue processing other rows
 
         # Commit all changes at once
         db.commit()
