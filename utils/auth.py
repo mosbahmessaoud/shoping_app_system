@@ -13,10 +13,12 @@ import hashlib
 # Configuration de sécurité
 # Changez ceci en production!
 SECRET_KEY = os.getenv(
-    "SECRET_KEY", "votre_clé_secrète_très_sécurisée_changez_moii_enn_productionn")
+    "SECRET_KEY")
 ALGORITHM = "HS256"
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 20  # 24 heures
+ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv(
+    "ACCESS_TOKEN_EXPIRE_MINUTES")
+# ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 20  # 24 heures
 
 # OAuth2 scheme pour l'extraction du token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
