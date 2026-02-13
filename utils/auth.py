@@ -16,9 +16,11 @@ SECRET_KEY = os.getenv(
     "SECRET_KEY")
 ALGORITHM = "HS256"
 
-ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv(
-    "ACCESS_TOKEN_EXPIRE_MINUTES", 525600)
-# ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 365  # 365 days
+try:
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(
+        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "525600"))
+except ValueError:
+    ACCESS_TOKEN_EXPIRE_MINUTES = 525600  # fallback to default
 
 # OAuth2 scheme pour l'extraction du token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
