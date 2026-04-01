@@ -11,17 +11,22 @@ class BillItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     bill_id = Column(Integer, ForeignKey("bills.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"),
-                        nullable=True)  # change nullable to true
+                        nullable=True)
+
     # Store product name at time of purchase
     product_name = Column(String(200), nullable=False)
     unit_price = Column(Numeric(15, 2), nullable=False)
     quantity = Column(Integer, nullable=False)
     subtotal = Column(Numeric(15, 2), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    # NEW: Store variants as JSON string
+
+    # Store variants as JSON string
     selected_variants = Column(Text, nullable=True)
+
     # Relationships
+    # many to one " billitems to bill" part of
     bill = relationship("Bill", back_populates="bill_items")
+    # many to one "billtems to profuct" references
     product = relationship("Product", back_populates="bill_items")
 
     def __repr__(self):

@@ -20,15 +20,20 @@ class Bill(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     notification_sent = Column(Boolean, default=False)
     delivery_status = Column(String(20), nullable=True,
-                             # "delivered" or "on_the_way" or "not_delivered" this is the new column
+                             # "delivered" or "on_the_way" or "not_delivered"
                              default="not_delivered")
 
     # Relationships
+
+    # many to one " bill to client " belongs to
     client = relationship("Client", back_populates="bills")
     bill_items = relationship(
-        "BillItem", back_populates="bill") # i have removed the cascade , cascade="all, delete-orphan"
+        "BillItem", back_populates="bill")  # one to many "bill to billintem" contains
     payments = relationship(
+        # one to many "bill to payment " paid by
         "Payment", back_populates="bill", cascade="all, delete-orphan")
+
+    # one to many " bill to notification " generates
     notifications = relationship("Notification", back_populates="bill")
 
     def __repr__(self):

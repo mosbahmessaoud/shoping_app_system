@@ -16,8 +16,8 @@ class StockAlert(Base):
     resolved_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    product = relationship("Product", back_populates="stock_alerts")
-    notifications = relationship("Notification", back_populates="stock_alert")
+    product = relationship("Product", back_populates="stock_alerts") # many to one " stock alert to product " alerts for
+    notifications = relationship("Notification", back_populates="stock_alert") # one to many "stockalert to notificaitno " generates
 
     def __repr__(self):
         return f"<StockAlert(id={self.id}, product_id={self.product_id}, resolved={self.is_resolved})>"

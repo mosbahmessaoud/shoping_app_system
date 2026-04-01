@@ -18,29 +18,31 @@ class Product(Base):
 
     barcode = Column(String(100), nullable=True, unique=True, index=True)
 
-    # Store images as JSON array
-    image_urls = Column(String(2500), nullable=True)  # JSON string of URLs
+    # as a JSON string of URLs
+    image_urls = Column(String(2500), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True)
 
-    is_sold = Column(Boolean, default=False)  # new
-
-    # NEW: Store product variants/options as JSON
+    # means a is enable to sell or not
+    is_sold = Column(Boolean, default=False)
 
     # JSON string for variant configurations
     variants = Column(Text, nullable=True)
 
     # Relationships
+    # many to one "products to categroy" belongs to
     category = relationship("Category", back_populates="products")
+    # many to one "products to admin" managed by
     admin = relationship("Admin", back_populates="products")
+    # one to many "product to billitems " ordered in
     bill_items = relationship("BillItem", back_populates="product")
     stock_alerts = relationship(
         "StockAlert",
         back_populates="product",
         cascade="all, delete-orphan"
-    )
+    )  # one to many "product to stoclalert " triggers
 
     def __repr__(self):
         return f"<Product(id={self.id}, name='{self.name}')>"

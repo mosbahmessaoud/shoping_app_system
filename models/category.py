@@ -12,7 +12,7 @@ class Category(Base):
     description = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
+    # Relationship one to many "category to products"
     products = relationship("Product", back_populates="category", cascade="all, delete-orphan")
 
     def __repr__(self):

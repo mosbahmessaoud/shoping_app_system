@@ -16,9 +16,9 @@ class Admin(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    products = relationship("Product", back_populates="admin", cascade="all, delete-orphan")
-    payments = relationship("Payment", back_populates="admin")
-    notifications = relationship("Notification", back_populates="admin")
+    products = relationship("Product", back_populates="admin", cascade="all, delete-orphan") # one to many "admin to products" creates
+    payments = relationship("Payment", back_populates="admin") # one to many "admi to payment" processes
+    notifications = relationship("Notification", back_populates="admin") # one to many "admin to notification " receives
 
     def __repr__(self):
         return f"<Admin(id={self.id}, username='{self.username}', email='{self.email}')>"

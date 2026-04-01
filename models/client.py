@@ -23,10 +23,11 @@ class Client(Base):
 
     # Relationships
     bills = relationship("Bill", back_populates="client",
-                         cascade="all, delete-orphan")
+                         cascade="all, delete-orphan")  # one to many "client to bills " has
+    # one to many "client to notification " receives
     notifications = relationship("Notification", back_populates="client")
-    # Add this to Client model
     account = relationship(
+        # one to one "client to account" include
         "ClientAccount", back_populates="client", uselist=False)
 
     def __repr__(self):

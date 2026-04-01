@@ -19,6 +19,7 @@ from sqlalchemy import func, extract, and_, cast, Date
 import json
 
 router = APIRouter(prefix="/bill", tags=["Bill"])
+# all router has relation to bill table
 
 
 def format_bill_item(item):
@@ -35,6 +36,7 @@ def format_bill_item(item):
     }
 
 
+# geting all statistics from bill table ,dayly
 @router.get("/statistics/daily", response_model=List[dict])
 def get_daily_bill_summary(
     year: int = Query(..., description="Year (e.g., 2024)"),
@@ -42,7 +44,7 @@ def get_daily_bill_summary(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Get daily bill summary for a specific month"""
+    """Get daily bill summary """
 
     # Query bills for the specific month and group by day
     results = db.query(
@@ -76,6 +78,8 @@ def get_daily_bill_summary(
 
     return daily_summary
 
+# geting all statistics from bill table , monthly
+
 
 @router.get("/statistics/monthly", response_model=List[dict])
 def get_monthly_bill_summary(
@@ -84,7 +88,7 @@ def get_monthly_bill_summary(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Get monthly bill summary, optionally filtered by year"""
+    """Get monthly bill summary"""
 
     query = db.query(
         func.to_char(Bill.created_at, 'YYYY-MM').label("month"),
@@ -116,6 +120,8 @@ def get_monthly_bill_summary(
         })
 
     return monthly_summary
+
+# geting all statistics from bill table , yearly
 
 
 @router.get("/statistics/yearly", response_model=List[dict])
@@ -152,6 +158,7 @@ def get_yearly_bill_summary(
     return yearly_summary
 
 
+# geting all statistics from bill table , bassed on the range period selected
 @router.get("/statistics/period-range", response_model=List[dict])
 def get_period_range_summary(
     start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
@@ -209,32 +216,25 @@ def get_period_range_summary(
     return summary
 
 
+# create a new bill
 @router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
 def create_bill(
     bill_data: BillCreate,
     current_client=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Créer une nouvelle facture (client seulement)"""
+    """create new bill """
 
-    # user = db.query(Client).all()
-
-    # if user:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_402_PAYMENT_REQUIRED,
-    #         detail="Votre compte est actuellement inactif. "
-    #     )
-
+    # check his account active or not
     if current_client.is_active == False:
         raise HTTPException(
             status_code=402,
             detail="Votre compte est actuellement inactif. Veuillez effectuer votre paiement afin qu'un administrateur puisse l'activer."
         )
-    # Générer un numéro de facture unique
+    # generate a unique nmbr
     bill_count = db.query(Bill).count()
     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
 
-    # Créer la facture
     new_bill = Bill(
         client_id=current_client.id,
         bill_number=bill_number,
@@ -248,12 +248,12 @@ def create_bill(
     db.add(new_bill)
     db.flush()
 
-    # Ajouter les articles de la facture
+    # add the articles of the bill
     total_amount = Decimal('0.00')
     bill_items = []
 
     for item in bill_data.items:
-        # Vérifier si le produit existe
+        # chekc if the product is exist
         product = db.query(Product).filter(
             Product.id == item.product_id).first()
         if not product:
@@ -263,7 +263,7 @@ def create_bill(
                 detail=f"Produit avec ID {item.product_id} non trouvé"
             )
 
-        # Vérifier si le produit est actif
+        # chech status of the product
         if not product.is_active:
             db.rollback()
             raise HTTPException(
@@ -271,7 +271,7 @@ def create_bill(
                 detail=f"Le produit '{product.name}' n'est pas disponible"
             )
 
-        # Vérifier le stock
+        # check the stock
         if product.quantity_in_stock < item.quantity:
             db.rollback()
             raise HTTPException(
@@ -279,7 +279,7 @@ def create_bill(
                 detail=f"Stock insuffisant pour le produit '{product.name}'. Stock disponible: {product.quantity_in_stock}"
             )
 
-        # Calculer le sous-total
+        # Calculate the sous total
         subtotal = product.price * item.quantity
         total_amount += subtotal
 
@@ -290,7 +290,7 @@ def create_bill(
                 [f"{v}" for v in item.selected_variants.values()])
             product_name = f"{product.name} ({variant_text})"
 
-        # Créer l'article de facture avec variantes
+        # creat the article of the bill with the variants included
         bill_item = BillItem(
             bill_id=new_bill.id,
             product_id=product.id,
@@ -304,20 +304,17 @@ def create_bill(
         db.add(bill_item)
         bill_items.append(bill_item)
 
-        # Décrémenter le stock
         product.quantity_in_stock -= item.quantity
 
-        # Vérifier et créer une alerte de stock si nécessaire
         check_and_create_stock_alert(db, product)
 
-    # Mettre à jour les totaux de la facture
+    # update the total of the bill
     new_bill.total_amount = total_amount
     new_bill.total_remaining = total_amount
 
     db.commit()
     db.refresh(new_bill)
 
-    # Créer une notification pour l'admin
     create_bill_notification(db, new_bill, current_client)
 
     return BillWithItems(
@@ -339,311 +336,13 @@ def create_bill(
             "unit_price": item.unit_price,
             "quantity": item.quantity,
             "subtotal": item.subtotal,
-            # NEW
             "selected_variants": json.loads(item.selected_variants) if item.selected_variants else None,
             "created_at": item.created_at
         } for item in bill_items]
     )
 
 
-# @router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
-# def create_bill(
-#     bill_data: BillCreate,
-#     current_client=Depends(get_current_client),
-#     db: Session = Depends(get_db)
-# ):
-#     """Créer une nouvelle facture (client seulement)"""
-
-#     # Générer un numéro de facture unique
-#     bill_count = db.query(Bill).count()
-#     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
-
-#     # Créer la facture
-#     new_bill = Bill(
-#         client_id=current_client.id,
-#         bill_number=bill_number,
-#         total_amount=Decimal('0.00'),
-#         total_paid=Decimal('0.00'),
-#         total_remaining=Decimal('0.00'),
-#         status="not paid",
-#         delivery_status="not_delivered"
-
-#     )
-
-#     db.add(new_bill)
-#     db.flush()
-
-#     # Ajouter les articles de la facture
-#     total_amount = Decimal('0.00')
-#     bill_items = []
-
-#     for item in bill_data.items:
-#         # Vérifier si le produit existe
-#         product = db.query(Product).filter(
-#             Product.id == item.product_id).first()
-#         if not product:
-#             db.rollback()
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail=f"Produit avec ID {item.product_id} non trouvé"
-#             )
-
-#         # Vérifier si le produit est actif
-#         if not product.is_active:
-#             db.rollback()
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail=f"Le produit '{product.name}' n'est pas disponible"
-#             )
-
-#         # Vérifier le stock
-#         if product.quantity_in_stock < item.quantity:
-#             db.rollback()
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail=f"Stock insuffisant pour le produit '{product.name}'. Stock disponible: {product.quantity_in_stock}"
-#             )
-
-#         # Calculer le sous-total
-#         subtotal = product.price * item.quantity
-#         total_amount += subtotal
-
-#         # Créer l'article de facture
-#         bill_item = BillItem(
-#             bill_id=new_bill.id,
-#             product_id=product.id,
-#             product_name=product.name,
-#             unit_price=product.price,
-#             quantity=item.quantity,
-#             subtotal=subtotal
-#         )
-#         db.add(bill_item)
-#         bill_items.append(bill_item)
-
-#         # Décrémenter le stock
-#         product.quantity_in_stock -= item.quantity
-
-#         # Vérifier et créer une alerte de stock si nécessaire
-#         check_and_create_stock_alert(db, product)
-
-#     # Mettre à jour les totaux de la facture
-#     new_bill.total_amount = total_amount
-#     new_bill.total_remaining = total_amount
-
-#     db.commit()
-#     db.refresh(new_bill)
-
-#     # Créer une notification pour l'admin
-#     create_bill_notification(db, new_bill, current_client)
-
-#     return BillWithItems(
-#         id=new_bill.id,
-#         bill_number=new_bill.bill_number,
-#         client_id=new_bill.client_id,
-#         total_amount=new_bill.total_amount,
-#         total_paid=new_bill.total_paid,
-#         total_remaining=new_bill.total_remaining,
-#         status=new_bill.status,
-#         delivery_status=new_bill.delivery_status,
-#         created_at=new_bill.created_at,
-#         updated_at=new_bill.updated_at,
-#         notification_sent=new_bill.notification_sent,
-#         items=[{
-#             "id": item.id,
-#             "product_id": item.product_id,
-#             "product_name": item.product_name,
-#             "unit_price": item.unit_price,
-#             "quantity": item.quantity,
-#             "subtotal": item.subtotal,
-#             "created_at": item.created_at
-#         } for item in bill_items]
-#     )
-
-
-# @router.post("/", response_model=BillWithItems, status_code=status.HTTP_201_CREATED)
-# def create_bill(
-#     bill_data: BillCreate,
-#     current_client=Depends(get_current_client),
-#     db: Session = Depends(get_db)
-# ):
-#     """Créer une nouvelle facture avec application automatique du crédit disponible"""
-#     from models.bill import Bill
-#     from models.bill_item import BillItem
-#     from models.product import Product
-#     from datetime import datetime
-#     from decimal import Decimal
-
-#     # Générer un numéro de facture unique
-#     bill_count = db.query(Bill).count()
-#     bill_number = f"BILL-{datetime.now().strftime('%Y%m%d')}-{bill_count + 1:04d}"
-
-#     # Get or create client account
-#     client_account = db.query(ClientAccount).filter(
-#         ClientAccount.client_id == current_client.id
-#     ).first()
-
-#     if not client_account:
-#         client_account = ClientAccount(
-#             client_id=current_client.id,
-#             total_amount=Decimal('0.00'),
-#             total_paid=Decimal('0.00'),
-#             total_remaining=Decimal('0.00')
-#         )
-#         db.add(client_account)
-#         db.flush()
-
-#     # Créer la facture
-#     new_bill = Bill(
-#         client_id=current_client.id,
-#         bill_number=bill_number,
-#         total_amount=Decimal('0.00'),
-#         total_paid=Decimal('0.00'),
-#         total_remaining=Decimal('0.00'),
-#         status="not paid"
-#     )
-
-#     db.add(new_bill)
-#     db.flush()
-
-#     # Ajouter les articles de la facture
-#     total_amount = Decimal('0.00')
-#     bill_items = []
-
-#     for item in bill_data.items:
-#         # Vérifier si le produit existe
-#         product = db.query(Product).filter(
-#             Product.id == item.product_id).first()
-#         if not product:
-#             db.rollback()
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail=f"Produit avec ID {item.product_id} non trouvé"
-#             )
-
-#         # Vérifier si le produit est actif
-#         if not product.is_active:
-#             db.rollback()
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail=f"Le produit '{product.name}' n'est pas disponible"
-#             )
-
-#         # Vérifier le stock
-#         if product.quantity_in_stock < item.quantity:
-#             db.rollback()
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail=f"Stock insuffisant pour le produit '{product.name}'. Stock disponible: {product.quantity_in_stock}"
-#             )
-
-#         # Calculer le sous-total
-#         subtotal = product.price * item.quantity
-#         total_amount += subtotal
-
-#         # Créer l'article de facture
-#         bill_item = BillItem(
-#             bill_id=new_bill.id,
-#             product_id=product.id,
-#             product_name=product.name,
-#             unit_price=product.price,
-#             quantity=item.quantity,
-#             subtotal=subtotal
-#         )
-#         db.add(bill_item)
-#         bill_items.append(bill_item)
-
-#         # Décrémenter le stock
-#         product.quantity_in_stock -= item.quantity
-
-#         # Vérifier et créer une alerte de stock si nécessaire
-#         check_and_create_stock_alert(db, product)
-
-#     # Mettre à jour le montant total de la facture
-#     new_bill.total_amount = total_amount
-
-#     # Get available credit (manually set by admin)
-#     available_credit = max(Decimal('0.00'), client_account.total_paid)
-
-#     # Apply credit to this new bill
-#     if available_credit > Decimal('0.00'):
-#         if available_credit >= total_amount:
-#             # Credit covers entire bill
-#             new_bill.total_paid = total_amount
-#             new_bill.total_remaining = Decimal('0.00')
-#             new_bill.status = "paid"
-#             # Deduct used credit from account
-#             client_account.total_paid -= total_amount
-#         else:
-#             # Credit partially covers bill
-#             new_bill.total_paid = available_credit
-#             new_bill.total_remaining = total_amount - available_credit
-#             new_bill.status = "partially paid"
-#             # All credit is used
-#             client_account.total_paid = Decimal('0.00')
-#     else:
-#         # No credit available
-#         new_bill.total_remaining = total_amount
-#         new_bill.status = "not paid"
-
-#     # Update account totals (add this new bill to unpaid bills)
-#     client_account.total_amount += total_amount
-#     client_account.total_remaining = client_account.total_amount - (client_account.total_amount - sum(
-#         bill.total_remaining for bill in db.query(Bill).filter(
-#             Bill.client_id == current_client.id,
-#             Bill.status.in_(["not paid", "partially paid"])
-#         ).all()
-#     ) + new_bill.total_remaining)
-
-#     # Simpler: just recalculate from scratch
-#     unpaid_bills = db.query(Bill).filter(
-#         Bill.client_id == current_client.id,
-#         Bill.status.in_(["not paid", "partially paid"])
-#     ).all()
-
-#     # if unpaid_bills :
-#     #     client_account.total_amount = sum(
-#     #         bill.total_amount for bill in unpaid_bills)
-#     #     client_account.total_remaining = sum(
-#     #         bill.total_remaining for bill in unpaid_bills)
-
-#     total_amount = sum(bill.total_amount for bill in unpaid_bills)
-#     # total_remaining = sum(bill.total_remaining for bill in unpaid_bills)
-
-#     client_account.total_amount = Decimal(str(total_amount))
-#     # client_account.total_remaining = Decimal(str(total_remaining))
-
-#     # if client_account.total_remaining == 0:
-#     #     client_account.total_amount = 0
-
-#     db.commit()
-#     db.refresh(new_bill)
-#     db.refresh(client_account)
-
-#     # Créer une notification pour l'admin
-#     create_bill_notification(db, new_bill, current_client)
-
-#     return BillWithItems(
-#         id=new_bill.id,
-#         bill_number=new_bill.bill_number,
-#         client_id=new_bill.client_id,
-#         total_amount=new_bill.total_amount,
-#         total_paid=new_bill.total_paid,
-#         total_remaining=new_bill.total_remaining,
-#         status=new_bill.status,
-#         created_at=new_bill.created_at,
-#         updated_at=new_bill.updated_at,
-#         notification_sent=new_bill.notification_sent,
-#         items=[{
-#             "id": item.id,
-#             "product_id": item.product_id,
-#             "product_name": item.product_name,
-#             "unit_price": item.unit_price,
-#             "quantity": item.quantity,
-#             "subtotal": item.subtotal,
-#             "created_at": item.created_at
-#         } for item in bill_items]
-#     )
-# Example: Update get_my_bills
+# get my bill
 @router.get("/my-bills", response_model=List[BillWithItems])
 def get_my_bills(
     skip: int = 0,

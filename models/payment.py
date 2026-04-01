@@ -17,8 +17,7 @@ class Payment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    bill = relationship("Bill", back_populates="payments")
-    admin = relationship("Admin", back_populates="payments")
-
+    bill = relationship("Bill", back_populates="payments") # many to one  " payment to bill"  
+    admin = relationship("Admin", back_populates="payments")# many to one " payment to admin " processed by   
     def __repr__(self):
         return f"<Payment(id={self.id}, bill_id={self.bill_id}, amount={self.amount_paid})>"

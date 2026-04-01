@@ -8,58 +8,59 @@ from models.client import Client
 from utils.db import get_db
 from utils.auth import hash_password, verify_password, create_access_token, get_current_admin
 
+
+# this file including just admins routers
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
+# @router.post("/register", response_model=AdminWithToken, status_code=status.HTTP_201_CREATED)
+# def register_admin(admin_data: AdminCreate, db: Session = Depends(get_db)):
+#     """singup new account """
 
-@router.post("/register", response_model=AdminWithToken, status_code=status.HTTP_201_CREATED)
-def register_admin(admin_data: AdminCreate, db: Session = Depends(get_db)):
-    """Inscription d'un nouvel administrateur"""
-    
-    # Vérifier si l'email existe déjà
-    existing_admin = db.query(Admin).filter(Admin.email == admin_data.email).first()
-    if existing_admin:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cet email est déjà utilisé"
-        )
-    
-    # Vérifier si le nom d'utilisateur existe déjà
-    existing_username = db.query(Admin).filter(Admin.username == admin_data.username).first()
-    if existing_username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ce nom d'utilisateur est déjà utilisé"
-        )
-    
-    # Créer le nouvel administrateur
-    new_admin = Admin(
-        username=admin_data.username,
-        email=admin_data.email,
-        password_hash=hash_password(admin_data.password),
-        phone_number=admin_data.phone_number
-    )
-    
-    db.add(new_admin)
-    db.commit()
-    db.refresh(new_admin)
-    
-    # Créer un token d'accès pour l'administrateur nouvellement enregistré
-    access_token = create_access_token(
-        data={"sub": str(new_admin.id), "type": "admin"}
-    )
-    
-    return {
-        "admin": new_admin,
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+#     # Vérifier si l'email existe déjà
+#     existing_admin = db.query(Admin).filter(Admin.email == admin_data.email).first()
+#     if existing_admin:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="Cet email est déjà utilisé"
+#         )
 
+#     # Vérifier si le nom d'utilisateur existe déjà
+#     existing_username = db.query(Admin).filter(Admin.username == admin_data.username).first()
+#     if existing_username:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="Ce nom d'utilisateur est déjà utilisé"
+#         )
+
+#     # Créer le nouvel administrateur
+#     new_admin = Admin(
+#         username=admin_data.username,
+#         email=admin_data.email,
+#         password_hash=hash_password(admin_data.password),
+#         phone_number=admin_data.phone_number
+#     )
+
+#     db.add(new_admin)
+#     db.commit()
+#     db.refresh(new_admin)
+
+#     # Créer un token d'accès pour l'administrateur nouvellement enregistré
+#     access_token = create_access_token(
+#         data={"sub": str(new_admin.id), "type": "admin"}
+#     )
+
+#     return {
+#         "admin": new_admin,
+#         "access_token": access_token,
+#         "token_type": "bearer"
+#     }
 
 
+# login router for admin
 @router.post("/login", response_model=AdminWithToken)
 def login_admin(login_data: AdminLogin, db: Session = Depends(get_db)):
-    """Connexion administrateur"""
+    """login to the account """
 
     admin = db.query(Admin).filter(Admin.email == login_data.email).first()
 
@@ -79,21 +80,25 @@ def login_admin(login_data: AdminLogin, db: Session = Depends(get_db)):
     }
 
 
+# get info of current user (admin )
+
+
 @router.get("/me", response_model=AdminResponse, dependencies=[Depends(get_current_admin)])
 def get_current_admin_info(current_admin: Admin = Depends(get_current_admin)):
-    """Obtenir les informations de l'administrateur connecté"""
+    """get the info of current user (admin) """
     return current_admin
 
 
+# update info of admin
 @router.put("/me", response_model=AdminResponse, dependencies=[Depends(get_current_admin)])
 def update_admin_profile(
     admin_data: AdminUpdate,
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Mettre à jour le profil de l'administrateur"""
+    """update the profile of admin"""
 
-    # Vérifier si le nouvel email existe déjà
+    # check if the email exist
     if admin_data.email and admin_data.email != current_admin.email:
         existing = db.query(Admin).filter(
             Admin.email == admin_data.email).first()
@@ -104,7 +109,7 @@ def update_admin_profile(
             )
         current_admin.email = admin_data.email
 
-    # Vérifier si le nouveau nom d'utilisateur existe déjà
+    # check the name of user is not the same
     if admin_data.username and admin_data.username != current_admin.username:
         existing = db.query(Admin).filter(
             Admin.username == admin_data.username).first()
@@ -115,7 +120,6 @@ def update_admin_profile(
             )
         current_admin.username = admin_data.username
 
-    # Mettre à jour les autres champs
     if admin_data.phone_number is not None:
         current_admin.phone_number = admin_data.phone_number
 
@@ -128,25 +132,26 @@ def update_admin_profile(
     return current_admin
 
 
+# get all admins existing
 @router.get("/", response_model=List[AdminResponse], dependencies=[Depends(get_current_admin)])
 def get_all_admins(
     skip: int = 0,
     limit: int = 100,
-    current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Obtenir la liste de tous les administrateurs"""
+    """get list of all admins"""
     admins = db.query(Admin).offset(skip).limit(limit).all()
     return admins
 
 
+# delet the account of current
 @router.delete("/{admin_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
 def delete_admin(
     admin_id: int,
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Supprimer un administrateur"""
+    """delete the account of current """
 
     if admin_id == current_admin.id:
         raise HTTPException(
@@ -167,9 +172,10 @@ def delete_admin(
     return None
 
 
+# get the type of user "admin or client " based on the email
 @router.post("/type_of_user", response_model=str)
 def get_type_of_user(login_data: AdminLogin, db: Session = Depends(get_db)):
-    """Vérifier le type d'utilisateur"""
+    """check the type of user """
 
     admin = db.query(Admin).filter(Admin.email == login_data.email).first()
     client = db.query(Client).filter(Client.email == login_data.email).first()

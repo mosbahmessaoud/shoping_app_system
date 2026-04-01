@@ -8,6 +8,11 @@ from .admin import (
     AdminWithToken
 )
 
+
+from .auth import (
+    UserTypeRequest,
+    UserTypeResponse
+)
 from .client import (
     ClientBase,
     ClientCreate,
@@ -75,34 +80,37 @@ from .notification import (
 
 __all__ = [
     # Admin schemas
-    "AdminBase", "AdminCreate", "AdminUpdate", "AdminLogin", 
+    "AdminBase", "AdminCreate", "AdminUpdate", "AdminLogin",
     "AdminResponse", "AdminWithToken",
-    
+
+    # auth schemas
+    "UserTypeRequest", "UserTypeResponse"
+
     # Client schemas
-    "ClientBase", "ClientCreate", "ClientUpdate", "ClientLogin", 
+    "ClientBase", "ClientCreate", "ClientUpdate", "ClientLogin",
     "ClientResponse", "ClientWithToken", "ClientSummary",
-    
+
     # Category schemas
-    "CategoryBase", "CategoryCreate", "CategoryUpdate", 
+    "CategoryBase", "CategoryCreate", "CategoryUpdate",
     "CategoryResponse", "CategoryWithCount",
-    
+
     # Product schemas
-    "ProductBase", "ProductCreate", "ProductUpdate", 
+    "ProductBase", "ProductCreate", "ProductUpdate",
     "ProductResponse", "ProductWithCategory", "ProductStockStatus",
-    
+
     # Bill schemas
     "BillItemCreate", "BillItemResponse", "BillCreate", "BillBase",
     "BillResponse", "BillWithItems", "BillWithClient", "BillSummary",
-    
+
     # Payment schemas
-    "PaymentBase", "PaymentCreate", "PaymentUpdate", 
+    "PaymentBase", "PaymentCreate", "PaymentUpdate",
     "PaymentResponse", "PaymentWithBillInfo", "PaymentHistory",
-    
+
     # Stock Alert schemas
-    "StockAlertBase", "StockAlertCreate", "StockAlertUpdate", 
+    "StockAlertBase", "StockAlertCreate", "StockAlertUpdate",
     "StockAlertResponse", "StockAlertWithProduct", "StockAlertSummary",
-    
+
     # Notification schemas
-    "NotificationBase", "NotificationCreate", "NotificationUpdate", 
+    "NotificationBase", "NotificationCreate", "NotificationUpdate",
     "NotificationResponse", "NotificationWithDetails", "NotificationSummary"
 ]

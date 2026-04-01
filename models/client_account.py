@@ -10,7 +10,8 @@ class ClientAccount(Base):
     __tablename__ = "client_accounts"
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), unique=True, nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id"),
+                       unique=True, nullable=False)
     total_amount = Column(Numeric(15, 2), nullable=False, default=0.00)
     total_paid = Column(Numeric(15, 2), nullable=False, default=0.00)
     total_remaining = Column(Numeric(15, 2), nullable=False, default=0.00)
@@ -18,11 +19,8 @@ class ClientAccount(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
+    # Relationship one to one "clientAccount to Client"
     client = relationship("Client", back_populates="account")
 
     def __repr__(self):
         return f"<ClientAccount(id={self.id}, client_id={self.client_id}, total_remaining={self.total_remaining})>"
-
-
-
