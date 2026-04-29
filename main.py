@@ -51,27 +51,24 @@ async def lifespan(app: FastAPI):
 
 # Créer l'application FastAPI
 app = FastAPI(
-    title="Système de Gestion E-Commerce",
+    title="E-Commerce Management System",
     description="""
-    ## API de gestion e-commerce avec FastAPI
-    
-    ### Fonctionnalités principales:
-    * **Gestion des administrateurs** - Inscription, connexion, gestion des admins
-    * **Gestion des clients** - Inscription, connexion, profils clients
-    * **Gestion des catégories** - CRUD complet des catégories de produits
-    * **Gestion des produits** - CRUD, gestion de stock, alertes automatiques
-    * **Gestion des factures** - Création, consultation, suivi des paiements
-    * **Gestion des paiements** - Paiements multiples, historique, mise à jour
-    * **Alertes de stock** - Notifications automatiques pour stock faible
-    * **Système de notifications** - Email et WhatsApp pour admins et clients
-    
-    ### Authentification:
-    L'API utilise JWT (JSON Web Tokens) pour l'authentification.
-    
-    ### Note:
-    Tous les messages de l'API sont en français.
+    ## E-commerce Management API with FastAPI
+
+    ### Main Features:
+    * **Admin Management** - Registration, login, admin management
+    * **Customer Management** - Registration, login, customer profiles
+    * **Category Management** - Full CRUD for product categories
+    * **Product Management** - CRUD, stock management, automatic alerts
+    * **Invoice Management** - Creation, viewing, payment tracking
+    * **Payment Management** - Multiple payments, history, updates
+    * **Stock Alerts** - Automatic notifications for low stock
+    * **Notification System** - Email and WhatsApp for admins and customers
+
+    ### Authentication:
+    The API uses JWT (JSON Web Tokens) for authentication.
     """,
-    version="1.0.0",
+    version="1.7.1",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"

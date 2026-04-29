@@ -342,7 +342,7 @@ def create_bill(
     )
 
 
-# get my bill
+# get current user bills
 @router.get("/my-bills", response_model=List[BillWithItems])
 def get_my_bills(
     skip: int = 0,
@@ -350,7 +350,7 @@ def get_my_bills(
     current_client=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Obtenir toutes les factures du client connecté"""
+    """get all bills of the currenat user"""
 
     bills = db.query(Bill).filter(Bill.client_id ==
                                   current_client.id).offset(skip).limit(limit).all()
@@ -370,7 +370,7 @@ def get_my_bills(
             updated_at=bill.updated_at,
             notification_sent=bill.notification_sent,
             items=[format_bill_item(item)
-                   for item in bill.bill_items]  # UPDATED
+                   for item in bill.bill_items]
         ))
 
     return result
@@ -383,21 +383,21 @@ def count_my_bills(
     current_client=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Obtenir le nombre total de factures du client connecté"""
+    """return  the number count of bills """
 
     count = db.query(Bill).filter(Bill.client_id == current_client.id).count()
 
     return {"count": count}
 
-# count all my bills this month
 
+# count all my bills this month
 
 @router.get("/my-bills/count/month")
 def count_my_bills(
     current_client=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Obtenir le nombre total de factures du client connecté pour le mois en cours"""
+    """return count number of bills this montrh"""
 
     # Get current month and year
     current_date = datetime.now()
@@ -413,15 +413,15 @@ def count_my_bills(
 
     return {"count": count}
 
-# count all unpaid bills
 
+# count all unpaid bills
 
 @router.get("/unpaid-bills/count")
 def count_my_bills(
     current_client=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Obtenir le nombre total de factures du client connecté"""
+    """return count number of unpaid bills """
 
     count = db.query(Bill).filter(
 
@@ -432,6 +432,8 @@ def count_my_bills(
     return {"count_unpaid": count}
 
 
+# retun all bills to admin
+
 @router.get("/all", response_model=List[BillWithClient])
 def get_all_bills(
     skip: int = 0,
@@ -440,7 +442,6 @@ def get_all_bills(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Obtenir toutes les factures (admin seulement)"""
 
     query = db.query(Bill)
 
@@ -472,12 +473,12 @@ def get_all_bills(
     return result
 
 
+# retunr summary data to admin
 @router.get("/summary", response_model=BillSummary)
 def get_bill_summary(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Obtenir le résumé des factures (admin seulement)"""
 
     total_bills = db.query(Bill).count()
     total_revenue = db.query(func.sum(Bill.total_amount)
@@ -498,19 +499,17 @@ def get_bill_summary(
         unpaid_bills=unpaid_bills,
     )
 
-# summary monthly bills - Fixed for PostgreSQL
 
+# return summary monthly bills to admin
 
 @router.get("/summary/monthly", response_model=List[BillSummary])
 def get_monthly_bill_summary(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Obtenir le résumé mensuel des factures (admin seulement)"""
 
     monthly_summary = []
 
-    # PostgreSQL uses TO_CHAR instead of strftime
     results = db.query(
         func.to_char(Bill.created_at, 'YYYY-MM').label("month"),
         func.count(Bill.id).label("total_bills"),
@@ -525,20 +524,20 @@ def get_monthly_bill_summary(
             total_revenue=row.total_revenue or Decimal('0.00'),
             total_paid=row.total_paid or Decimal('0.00'),
             total_pending=row.total_pending or Decimal('0.00'),
-            paid_bills=0,  # Non calculé dans ce résumé
-            unpaid_bills=0  # Non calculé dans ce résumé
+            paid_bills=0,
+            unpaid_bills=0
         ))
 
     return monthly_summary
 
 
+# return a bill by bill id
 @router.get("/{bill_id}", response_model=BillWithItems)
 def get_bill_by_id(
     bill_id: int,
     current_client=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Obtenir une facture par son ID"""
 
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
@@ -547,7 +546,6 @@ def get_bill_by_id(
             detail="Facture non trouvée"
         )
 
-    # Vérifier que le client accède à sa propre facture
     if bill.client_id != current_client.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -569,8 +567,8 @@ def get_bill_by_id(
         items=[format_bill_item(item) for item in bill.bill_items]
     )
 
-# admin pay a bill
 
+# post a new payment to a existing bill by admin
 
 @router.post("/{bill_id}/pay", response_model=BillResponse)
 def pay_bill(
@@ -579,7 +577,7 @@ def pay_bill(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Payer une facture (admin seulement)"""
+    """pay a bill by admin"""
 
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
@@ -600,7 +598,6 @@ def pay_bill(
             detail="Le montant payé dépasse le montant restant"
         )
 
-    # Mettre à jour les montants de la facture
     bill.total_paid += amount
     bill.total_remaining -= amount
 
@@ -624,6 +621,8 @@ def pay_bill(
         notification_sent=bill.notification_sent
     )
 
+# return a bill by id to admin
+
 
 @router.get("/admin/{bill_id}", response_model=BillWithClient)
 def get_bill_by_id_admin(
@@ -631,7 +630,6 @@ def get_bill_by_id_admin(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Obtenir une facture par son ID (admin seulement)"""
 
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
@@ -659,6 +657,8 @@ def get_bill_by_id_admin(
     )
 
 
+# update the paymen of a bill by admin
+
 @router.patch("/{bill_id}/correct-total-paid", response_model=BillResponse)
 def correct_bill_total_paid(
     bill_id: int,
@@ -667,7 +667,6 @@ def correct_bill_total_paid(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Corriger le montant total payé d'une facture (admin seulement)"""
 
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
@@ -702,13 +701,14 @@ def correct_bill_total_paid(
     return bill
 
 
+# return a statustics of bills for a specific day
+
 @router.get("/statistics/daily-hourly", response_model=List[dict])
 def get_daily_hourly_summary(
     date: str,  # Format: YYYY-MM-DD
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Get hourly bill summary for a specific day (admin only)"""
     try:
         target_date = datetime.strptime(date, '%Y-%m-%d').date()
     except ValueError:
@@ -749,16 +749,14 @@ def get_daily_hourly_summary(
         for hour in range(24)
     ]
 
-# Replace the get_status_of_bill endpoint (around line 850)
 
-
+# return the status of delivery of a bill
 @router.get("/status/{bill_id}", dependencies=[Depends(get_current_client)])
 def get_status_of_bill(
     bill_id: int,
     current_user=Depends(get_current_client),
     db: Session = Depends(get_db)
 ):
-    """Get delivery status of a bill"""
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
 
     if not bill:
@@ -769,9 +767,9 @@ def get_status_of_bill(
 
     # Return simple dict, not BillWithClient schema
     return {"bill_id": bill.id, "status": bill.delivery_status}
-# client get his bill by the delivery status
 
 
+# return the a bill by delivery status to the client
 @router.get("/delivery_status/{bill_id}", response_model=List[BillWithClient], dependencies=[Depends(get_current_client)])
 def get_bills_by_delivery_status(
     bill_id: int,
@@ -806,13 +804,13 @@ def get_bills_by_delivery_status(
     )
 
 
+# return the bills by status delivery
 @router.get("/delivery_status", response_model=List[BillWithClient], dependencies=[Depends(get_current_admin)])
 def get_bills_by_delivery_status(
     bill_id: int,
     status_data: str = Query(..., description="Delivery status to filter by"),
     db: Session = Depends(get_db)
 ):
-    """" get the status delivery of the bill"""
 
     bills = db.query(Bill).filter(Bill.delivery_status == status_data).all()
     if not bills:
@@ -842,13 +840,13 @@ def get_bills_by_delivery_status(
     return bills
 
 
+# change the delivery status of a bill by admin
 @router.get("/change-delivery-status/{bill_id}", response_model=BillResponse, dependencies=[Depends(get_current_admin)])
 def change_delivery_status(
     bill_id: int,
     new_status: str = Query(..., description="New delivery status"),
     db: Session = Depends(get_db)
 ):
-    """Change the delivery status of a bill (admin only)"""
 
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
@@ -861,45 +859,6 @@ def change_delivery_status(
     # Update delivery status
     bill.delivery_status = new_status
 
-    # if old_status == "cancelled" :
-    #         # if the new status is cancelled should update the Client Account
-    #         client_account= db.query(ClientAccount).filter(
-    #             ClientAccount.client_id == bill.client_id
-    #         ).first()
-
-    #         client_account.total_paid += bill.total_paid
-    #         client_account.total_amount += bill.total_amount
-    #         client_account.total_remaining += bill.total_remaining
-
-    #         db.refresh(client_account)
-    # client_account= db.query(ClientAccount).filter(
-    #                 ClientAccount.client_id == bill.client_id
-    #             ).first()
-
-    # if old_status == "cancelled" :
-
-    #         client_account.total_amount -= bill.total_amount
-    #         client_account.total_remaining -= bill.total_remaining
-
-    # if new_status == "cancelled" :
-    #     if bill.status == "paid":
-
-    #         client_account.total_paid += bill.total_paid
-
-    #     elif bill.status == "partial" :
-
-    #         client_account.total_amount -= bill.total_amount
-    #         client_account.total_paid += bill.total_paid
-    #         client_account.total_remaining -= bill.total_remaining
-
-    #     elif bill.status == "not paid" :
-
-    #         client_account.total_amount -= bill.total_amount
-    #         client_account.total_remaining -= bill.total_remaining
-
-    #     bill.status = "not paid"
-
-    # db.refresh(client_account)
     db.commit()
     db.refresh(bill)
 
@@ -918,7 +877,7 @@ def change_delivery_status(
     )
 
 
-# delete all bills
+# delete all bills by admin
 @router.delete("/delete-all", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
 def delete_all_bills(
     db: Session = Depends(get_db)
@@ -931,7 +890,7 @@ def delete_all_bills(
 
     return {"detail": "All bills deleted successfully"}
 
-# delete bill by id
+# delete bill by admin
 
 
 @router.delete("/{bill_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
@@ -939,7 +898,6 @@ def delete_bill_by_id(
     bill_id: int,
     db: Session = Depends(get_db)
 ):
-    """Delete a bill by its ID (admin only)"""
 
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
@@ -961,14 +919,12 @@ def delete_bill_by_id(
 
     return {"detail": f"{bill_nember} deleted successfully"}
 
-    # delete all paid bills
 
-
+# delete all paid bills by admin
 @router.delete("/delete/paid", dependencies=[Depends(get_current_admin)])
 def delete_all_paid_bills(
     db: Session = Depends(get_db)
 ):
-    """Delete all paid bills (admin only)"""
 
     paid_bills = db.query(Bill).filter(Bill.status == "paid").all()
 
@@ -985,14 +941,13 @@ def delete_all_paid_bills(
 
     return {"detail": "All paid bills deleted successfully"}
 
-# delete old then one year bills
 
+# delete old then one year bills
 
 @router.delete("/delete/old", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
 def delete_old_bills(
     db: Session = Depends(get_db)
 ):
-    """Delete all bills older than one year (admin only)"""
 
     one_year_ago = datetime.utcnow() - timedelta(days=370)
     old_bills = db.query(Bill).filter(Bill.created_at < one_year_ago).all()
