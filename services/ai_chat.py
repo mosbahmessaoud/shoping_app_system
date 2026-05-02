@@ -3,13 +3,13 @@
 import os
 import json
 import logging
-import google.generativeai as genai
+from google import genai
 from groq import Groq, RateLimitError
 
 logger = logging.getLogger(__name__)
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"), timeout=120.0)
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 RATE_LIMIT_MESSAGE = (
     "عذراً، الخدمة مشغولة حالياً بسبب ارتفاع حجم الاستخدام. "
@@ -24,15 +24,16 @@ GROQ_MODELS = [
 
 
 def _call_gemini_fallback(groq_messages: list) -> str:
-    """Call Gemini 1.5 Flash when all Groq models are exhausted."""
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
         prompt = "\n".join(
             f"{m['role'].upper()}: {m['content']}"
             for m in groq_messages
             if m["role"] in ("system", "user", "assistant")
         )
-        response = model.generate_content(prompt)
+        response = gemini_client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt,
+        )
         return response.text or "لم أتمكن من الرد."
     except Exception as e:
         logger.error("Gemini fallback also failed: %s", e)
