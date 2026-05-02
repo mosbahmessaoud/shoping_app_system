@@ -1,50 +1,77 @@
 
-
 # services/ai_chat.py
 import os
 import json
 import logging
+import google.generativeai as genai
 from groq import Groq, RateLimitError
 
 logger = logging.getLogger(__name__)
 
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY"),
-    timeout=120.0,  # 2 minutes timeout
-)
+# ── Groq client ────────────────────────────────────────────────────────────────
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"), timeout=120.0)
+
+# ── Gemini client ──────────────────────────────────────────────────────────────
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 RATE_LIMIT_MESSAGE = (
     "عذراً، الخدمة مشغولة حالياً بسبب ارتفاع حجم الاستخدام. "
     "يرجى المحاولة مجدداً بعد بضع دقائق."
 )
 
-FALLBACK_MODELS = [
+GROQ_MODELS = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
     "gemma2-9b-it",
 ]
 
 
-def _try_create(model: str, groq_messages: list, tools: list, max_tokens: int):
-    """Attempt a single Groq API call with a specific model."""
-    return client.chat.completions.create(
-        model=model,
-        messages=groq_messages,
-        tools=tools if tools else None,
-        tool_choice="auto" if tools else None,
-        max_tokens=max_tokens,
-    )
+# ── Gemini fallback (no tool support, plain chat) ──────────────────────────────
+def _call_gemini_fallback(groq_messages: list) -> str:
+    """Call Gemini 1.5 Flash when all Groq models are exhausted."""
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        # Convert messages to a single prompt string
+        prompt = "\n".join(
+            f"{m['role'].upper()}: {m['content']}"
+            for m in groq_messages
+            if m["role"] in ("user", "assistant", "system")
+        )
+        response = model.generate_content(prompt)
+        return response.text or "لم أتمكن من الرد."
+    except Exception as e:
+        logger.error("Gemini fallback also failed: %s", e)
+        return RATE_LIMIT_MESSAGE
 
 
-def chat_with_gemini(  # keeping same function name so nothing else breaks
+# ── Pick an available Groq model ───────────────────────────────────────────────
+def _pick_groq_model() -> str | None:
+    for model in GROQ_MODELS:
+        try:
+            groq_client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1,
+            )
+            return model
+        except RateLimitError:
+            logger.warning("Groq model %s rate-limited, trying next...", model)
+        except Exception:
+            logger.warning("Groq model %s unavailable, trying next...", model)
+    return None
+
+
+# ── Main function ──────────────────────────────────────────────────────────────
+def chat_with_gemini(
     messages: list,
     tool_functions: list,
     system_prompt: str,
 ) -> str:
-    # Build tools schema from Python functions
+    import inspect
+
+    # Build tools schema
     tools = []
     for fn in tool_functions:
-        import inspect
         sig = inspect.signature(fn)
         params = {}
         required = []
@@ -52,7 +79,6 @@ def chat_with_gemini(  # keeping same function name so nothing else breaks
             params[name] = {"type": "string", "description": name}
             if param.default == inspect.Parameter.empty:
                 required.append(name)
-
         tools.append({
             "type": "function",
             "function": {
@@ -66,70 +92,46 @@ def chat_with_gemini(  # keeping same function name so nothing else breaks
             },
         })
 
-    # Build message list
+    # Build messages
     groq_messages = [{"role": "system", "content": system_prompt}]
     for msg in messages:
-        groq_messages.append({
-            "role": msg["role"],
-            "content": msg["content"],
-        })
+        groq_messages.append({"role": msg["role"], "content": msg["content"]})
 
     fn_map = {fn.__name__: fn for fn in tool_functions}
 
-    # Determine which model to use — try primary first, then fallbacks
-    active_model = None
-    for model in FALLBACK_MODELS:
-        try:
-            # Probe with a minimal call to confirm the model is available
-            client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=1,
-            )
-            active_model = model
-            break
-        except RateLimitError:
-            logger.warning(
-                "Model %s rate-limited, trying next fallback...", model)
-            continue
-        except Exception:
-            # Any other error (auth, network) — still try next model
-            logger.warning(
-                "Model %s unavailable, trying next fallback...", model)
-            continue
+    # Try Groq first
+    active_model = _pick_groq_model()
 
     if active_model is None:
-        logger.error("All Groq models are rate-limited or unavailable.")
-        return RATE_LIMIT_MESSAGE
+        logger.warning("All Groq models exhausted — switching to Gemini.")
+        return _call_gemini_fallback(groq_messages)
 
-    if active_model != FALLBACK_MODELS[0]:
-        logger.info(
-            "Primary model rate-limited. Using fallback model: %s", active_model)
+    if active_model != GROQ_MODELS[0]:
+        logger.info("Using Groq fallback model: %s", active_model)
 
-    # Agentic loop — Groq calls tools until it has enough to answer
+    # Agentic loop
     for _ in range(5):
         try:
-            response = _try_create(
+            response = groq_client.chat.completions.create(
                 model=active_model,
-                groq_messages=groq_messages,
-                tools=tools,
+                messages=groq_messages,
+                tools=tools if tools else None,
+                tool_choice="auto" if tools else None,
                 max_tokens=1024,
             )
         except RateLimitError as e:
-            logger.error(
-                "Rate limit hit mid-conversation on model %s: %s", active_model, e)
-            return RATE_LIMIT_MESSAGE
+            logger.error("Rate limit mid-loop on %s: %s", active_model, e)
+            # Try Gemini as last resort
+            return _call_gemini_fallback(groq_messages)
         except Exception as e:
             logger.error("Unexpected Groq error: %s", e)
             return "عذراً، حدث خطأ غير متوقع. يرجى المحاولة لاحقاً."
 
         msg = response.choices[0].message
 
-        # Done — return text
         if response.choices[0].finish_reason == "stop":
             return msg.content or "لم أتمكن من الرد."
 
-        # Tool calls requested
         if msg.tool_calls:
             groq_messages.append({
                 "role": "assistant",
@@ -154,8 +156,8 @@ def chat_with_gemini(  # keeping same function name so nothing else breaks
                         args = json.loads(tc.function.arguments)
                         result = fn(**args)
                     except Exception as e:
-                        logger.warning(
-                            "Tool %s raised an error: %s", tc.function.name, e)
+                        logger.warning("Tool %s error: %s",
+                                       tc.function.name, e)
                         result = {"error": str(e)}
                 else:
                     result = {"error": "unknown tool"}
