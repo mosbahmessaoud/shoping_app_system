@@ -12,11 +12,12 @@ from .auth import router as auth_router
 from .otp import router as otp_rout
 from .upload import router as upload_images
 from .client_account import router as client_account_router
+from routers.chat import router as chat_router
 
 __all__ = [
     "admin_router",
     "client_router",
-    "category_router", 
+    "category_router",
     "product_router",
     "bill_router",
     "payment_router",
@@ -25,6 +26,7 @@ __all__ = [
     "auth_router",
     "otp_rout",
     "upload_images",
-    "client_account_router"
+    "client_account_router",
+    "chat_router"
 
 ]
