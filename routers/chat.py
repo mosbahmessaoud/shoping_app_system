@@ -20,7 +20,7 @@ from typing import List, Optional
 
 from utils.db import get_db
 from services.ai_chat import chat_with_gemini          # Groq under the hood
-from services.ai_tools_groq import (
+from services.ai_tools_gemini import (
     # ── Admin tools ──────────────────────────────────────────
     get_dashboard_stats,
     get_all_bills_with_status,
