@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from utils.db import get_db
 from services.ai_chat import chat_with_gemini
-from services.ai_tools import (
+from services.ai_tools_gemini import (
     get_client_bills,
     get_client_account_summary,
     search_products_for_client,

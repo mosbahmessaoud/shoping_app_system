@@ -11,7 +11,6 @@ def chat_with_gemini(
     tool_functions: list,
     system_prompt: str,
 ) -> str:
-    # Convert history to genai format
     history = []
     for msg in messages[:-1]:
         history.append(
