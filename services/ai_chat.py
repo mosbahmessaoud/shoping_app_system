@@ -1,9 +1,13 @@
 # services/ai_chat.py
+# services/ai_chat.py
 import os
 import json
 from groq import Groq
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY"),
+    timeout=120.0,  # 2 minutes timeout
+)
 
 
 def chat_with_gemini(  # keeping same function name so nothing else breaks

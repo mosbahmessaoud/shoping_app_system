@@ -7,6 +7,7 @@ from typing import List, Optional
 from utils.db import get_db
 from services.ai_chat import chat_with_gemini
 from services.ai_tools_gemini import (
+    get_all_bills_with_status,
     get_client_bills,
     get_client_account_summary,
     search_products_for_client,
@@ -153,6 +154,10 @@ async def admin_chat(
         """Get the most recent payments processed in the store."""
         return get_recent_payments(db)
 
+    def get_bills_with_status() -> dict:
+        """Get all bills with payment status and client names. Shows paid and unpaid bills."""
+        return get_all_bills_with_status(db)
+
     messages = [m.dict() for m in request.history] + [
         {"role": "user", "content": request.message}
     ]
@@ -160,7 +165,7 @@ async def admin_chat(
     reply = chat_with_gemini(
         messages=messages,
         tool_functions=[get_stats, list_clients, low_stock_products,
-                        search_products, recent_payments],
+                        search_products, recent_payments, get_bills_with_status],
         system_prompt=ADMIN_SYSTEM_PROMPT,
     )
 
