@@ -66,7 +66,8 @@ from services.ai_tools_gemini import (
     get_active_categories_for_client,
     get_products_by_category_for_client,
 )
-from routers.auth import get_current_client, get_current_admin  # ← JWT guards
+
+from utils.auth import get_current_client, get_current_admin, get_current_user
 
 router = APIRouter(prefix="/chat", tags=["AI Chat"])
 
