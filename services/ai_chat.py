@@ -97,7 +97,8 @@ def _run_loop(
             messages=messages,
             tools=tools or None,
             tool_choice="auto" if tools else None,
-            max_tokens=1500,
+            max_tokens=4000,
+            # max_tokens=2500,
             temperature=0.35,
         )
 
