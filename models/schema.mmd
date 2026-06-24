@@ -1,0 +1,154 @@
+erDiagram
+
+    Admin {
+        int id PK
+        string username
+        string email
+        string password_hash
+        string phone_number
+        datetime created_at
+        datetime updated_at
+    }
+
+    Client {
+        int id PK
+        string username
+        string email
+        string password_hash
+        string phone_number
+        string address
+        string city
+        datetime created_at
+        datetime updated_at
+        boolean is_active
+        string password_access
+    }
+
+    ClientAccount {
+        int id PK
+        int client_id FK
+        numeric total_amount
+        numeric total_paid
+        numeric total_remaining
+        numeric total_credit
+        datetime created_at
+        datetime updated_at
+    }
+
+    Category {
+        int id PK
+        string name
+        string description
+        datetime created_at
+    }
+
+    Product {
+        int id PK
+        int category_id FK
+        int admin_id FK
+        string name
+        text description
+        numeric price
+        int quantity_in_stock
+        int minimum_stock_level
+        string barcode
+        string image_urls
+        datetime created_at
+        datetime updated_at
+        boolean is_active
+        boolean is_sold
+        text variants
+    }
+
+    Bill {
+        int id PK
+        int client_id FK
+        string bill_number
+        numeric total_amount
+        numeric total_paid
+        numeric total_remaining
+        string status
+        datetime created_at
+        datetime updated_at
+        boolean notification_sent
+        string delivery_status
+    }
+
+    BillItem {
+        int id PK
+        int bill_id FK
+        int product_id FK
+        string product_name
+        numeric unit_price
+        int quantity
+        numeric subtotal
+        datetime created_at
+        text selected_variants
+    }
+
+    Payment {
+        int id PK
+        int bill_id FK
+        int admin_id FK
+        numeric amount_paid
+        string payment_method
+        string notes
+        datetime payment_date
+        datetime created_at
+    }
+
+    StockAlert {
+        int id PK
+        int product_id FK
+        string alert_type
+        string message
+        boolean is_resolved
+        datetime created_at
+        datetime resolved_at
+    }
+
+    Notification {
+        int id PK
+        int admin_id FK
+        int client_id FK
+        int bill_id FK
+        int stock_alert_id FK
+        string notification_type
+        string channel
+        string message
+        boolean is_sent
+        datetime sent_at
+        datetime created_at
+    }
+
+    OTP {
+        int id PK
+        string email
+        string otp_code
+        string otp_type
+        boolean is_used
+        boolean is_verified
+        datetime expires_at
+        datetime created_at
+    }
+
+    %% Relationships
+
+    Client ||--o| ClientAccount : "has account"
+    Client ||--o{ Bill : "has bills"
+    Client ||--o{ Notification : "receives"
+
+    Admin ||--o{ Product : "manages"
+    Admin ||--o{ Payment : "processes"
+    Admin ||--o{ Notification : "receives"
+
+    Category ||--o{ Product : "contains"
+
+    Product ||--o{ BillItem : "ordered in"
+    Product ||--o{ StockAlert : "triggers"
+
+    Bill ||--o{ BillItem : "contains"
+    Bill ||--o{ Payment : "paid via"
+    Bill ||--o{ Notification : "generates"
+
+    StockAlert ||--o{ Notification : "generates"
