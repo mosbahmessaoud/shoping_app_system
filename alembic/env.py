@@ -1,6 +1,7 @@
 """
 Alembic environment configuration with ENVIRONMENT support
 """
+
 from models.client_account import ClientAccount
 from models.otp import OTP
 from models.notification import Notification
@@ -12,6 +13,7 @@ from models.product import Product
 from models.category import Category
 from models.client import Client
 from models.admin import Admin
+from models.ecommerce_order import EcommerceOrder
 from utils.db import Base
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
@@ -75,7 +77,7 @@ if not DATABASE_URL:
     print(f"⚠️ Using default local database")
 
 # Mask password in logs for security
-masked_url = re.sub(r'://([^:]+):([^@]+)@', r'://\1:****@', DATABASE_URL)
+masked_url = re.sub(r"://([^:]+):([^@]+)@", r"://\1:****@", DATABASE_URL)
 print(f"📊 Alembic Database: {masked_url}")
 
 # Override sqlalchemy.url in alembic.ini
