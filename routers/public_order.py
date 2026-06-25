@@ -59,7 +59,7 @@ def list_baladias_for_wilaya(wilaya_id: int):
 
 @router.get("/products")
 def list_public_products(
-    skip: int = 0,
+    skip: int = 0, 
     limit: int = 50,
     category_id: Optional[int] = None,
     db: Session = Depends(get_db),

@@ -1,4 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Numeric, ForeignKey, Text
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    Numeric,
+    ForeignKey,
+    Text,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from utils.db import Base
@@ -31,6 +40,12 @@ class Product(Base):
     # JSON string for variant configurations
     variants = Column(Text, nullable=True)
 
+    # NEW: JSON string for dynamic storefront landing-page blocks
+    # (ordered list of {"type": "image", "url": "..."} / {"type": "text", "content": "..."})
+    # Optional - managed from the Flutter admin app via PUT /product/{id}/landing-blocks.
+    # When null/empty, the storefront falls back to showing `description` instead.
+    landing_blocks = Column(Text, nullable=True)
+
     # Relationships
     # many to one "products to categroy" belongs to
     category = relationship("Category", back_populates="products")
@@ -39,9 +54,7 @@ class Product(Base):
     # one to many "product to billitems " ordered in
     bill_items = relationship("BillItem", back_populates="product")
     stock_alerts = relationship(
-        "StockAlert",
-        back_populates="product",
-        cascade="all, delete-orphan"
+        "StockAlert", back_populates="product", cascade="all, delete-orphan"
     )  # one to many "product to stoclalert " triggers
 
     def __repr__(self):

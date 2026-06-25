@@ -12,6 +12,7 @@ from .otp import router as otp_rout
 from .upload import router as upload_images
 from .client_account import router as client_account_router
 from .public_order import router as public_order_router
+from .landing_blocks import router as landing_blocks_router
 
 # from routers.chat import router as chat_router
 
@@ -29,5 +30,6 @@ __all__ = [
     "upload_images",
     "client_account_router",
     "public_order_router",
+    "landing_blocks_router",
     # "chat_router"
 ]
