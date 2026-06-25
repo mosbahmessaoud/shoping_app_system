@@ -18,7 +18,6 @@ from routers import (
     otp_rout,
     upload_images,
     client_account_router,
-    chat_router,
     public_order_router,
     landing_blocks_router,
 )
@@ -166,7 +165,6 @@ app.include_router(auth_router)
 app.include_router(otp_rout)
 app.include_router(upload_images)
 app.include_router(client_account_router)
-app.include_router(chat_router)
 app.include_router(public_order_router)
 app.include_router(landing_blocks_router)
 
