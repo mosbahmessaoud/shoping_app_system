@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import json
-
+from sqlalchemy import func, extract, case
 from models.product import Product
 from models.category import Category
 from schemas.product import (
@@ -26,7 +26,6 @@ import cloudinary.uploader
 import re
 
 from datetime import datetime, timedelta
-from sqlalchemy import func, extract
 
 router = APIRouter(prefix="/product", tags=["Product"])
 
