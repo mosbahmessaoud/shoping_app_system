@@ -1,6 +1,5 @@
 # routers/public_order.py
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Optional
 from decimal import Decimal
 import json
@@ -24,6 +23,10 @@ from utils.wilaya_data import (
     get_commune_by_id,
 )
 from utils.telegram_service import send_new_order_telegram_alert
+
+# After
+from sqlalchemy.orm import Session
+from sqlalchemy import case
 
 logger = logging.getLogger(__name__)
 
@@ -59,19 +62,31 @@ def list_baladias_for_wilaya(wilaya_id: int):
 
 @router.get("/products")
 def list_public_products(
-    skip: int = 0, 
+    skip: int = 0,
     limit: int = 50,
     category_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    """Liste des produits actifs et en stock pour la vitrine publique"""
-    query = db.query(Product).filter(
-        Product.is_active == True, Product.is_sold == False
-    )
+    """
+    Liste des produits actifs pour la vitrine publique.
+
+    Ordering:
+      1. In-stock + special offer (is_sold=True)  → top
+      2. In-stock regular                          → middle
+      3. Out of stock (quantity_in_stock == 0)     → bottom
+    """
+    query = db.query(Product).filter(Product.is_active == True)
+
     if category_id is not None:
         query = query.filter(Product.category_id == category_id)
 
-    products = query.offset(skip).limit(limit).all()
+    priority = case(
+        (Product.quantity_in_stock == 0, 2),  # out of stock  → last
+        (Product.is_sold == True, 0),  # special offer → first
+        else_=1,  # regular stock → middle
+    )
+
+    products = query.order_by(priority, Product.id).offset(skip).limit(limit).all()
     return products
 
 
@@ -113,7 +128,7 @@ def create_public_order(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Produit non trouvé"
         )
-    if not product.is_active or product.is_sold:
+    if not product.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ce produit n'est plus disponible",
