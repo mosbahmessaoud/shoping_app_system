@@ -17,7 +17,8 @@ from models.payment import Payment
 from models.stock_alert import StockAlert
 from models.notification import Notification
 from models.client_account import ClientAccount
-
+from models.store_user import StoreUser  # noqa: F401
+from models.ecommerce_order import EcommerceOrder  # noqa: F401 (if not already there)
 
 # Define what's exported when using "from models import *"
 __all__ = [
@@ -26,7 +27,6 @@ __all__ = [
     "engine",
     "SessionLocal",
     "get_db",
-
     # Models
     "Admin",
     "Client",
@@ -38,4 +38,6 @@ __all__ = [
     "StockAlert",
     "Notification",
     "ClientAccount",
+    "StoreUser",
+    "EcommerceOrder",
 ]

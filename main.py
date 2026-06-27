@@ -23,7 +23,7 @@ from routers import (
 )
 
 # Import de l'initialisation de la base de données - FIXED: Added server. prefix
-from utils.db import create_sample_data, init_db, test_connection
+from utils.db import Base, create_sample_data, init_db, test_connection, engine
 from dotenv import load_dotenv
 import os
 
@@ -150,6 +150,12 @@ async def general_exception_handler(request, exc):
             "details": str(exc),
         },
     )
+
+
+# ⚠️ DEV ONLY — drops and recreates all tables on every startup
+# @app.on_event("startup")
+# def reset_database():
+#     Base.metadata.create_all(bind=engine)
 
 
 # Enregistrer tous les routers

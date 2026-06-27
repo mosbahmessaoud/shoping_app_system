@@ -14,6 +14,8 @@ from models.category import Category
 from models.client import Client
 from models.admin import Admin
 from models.ecommerce_order import EcommerceOrder
+from models.store_user import StoreUser  # noqa: F401
+from models.ecommerce_order import EcommerceOrder  # noqa: F401 (if not already there)
 from utils.db import Base
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config

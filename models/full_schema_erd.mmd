@@ -1,0 +1,177 @@
+erDiagram
+    ADMIN {
+        int id PK
+        string username
+        string email
+        string password_hash
+        string phone_number
+        datetime created_at
+        datetime updated_at
+    }
+
+    CATEGORY {
+        int id PK
+        string name
+        string description
+        datetime created_at
+    }
+
+    PRODUCT {
+        int id PK
+        int category_id FK
+        int admin_id FK
+        string name
+        text description  
+        numeric price
+        int quantity_in_stock
+        int minimum_stock_level
+        string barcode
+        string image_urls "JSON array of URLs"
+        text variants "JSON variant config"
+        text landing_blocks "JSON storefront blocks"
+        boolean is_active
+        boolean is_sold
+        datetime created_at
+        datetime updated_at
+    }
+
+    STOCK_ALERT {
+        int id PK
+        int product_id FK
+        string alert_type
+        string message
+        boolean is_resolved
+        datetime created_at
+        datetime resolved_at
+    }
+
+    CLIENT {
+        int id PK
+        string username
+        string email
+        string password_hash
+        string phone_number
+        string address
+        string city
+        string password_access
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    CLIENT_ACCOUNT {
+        int id PK
+        int client_id FK
+        numeric total_amount
+        numeric total_paid
+        numeric total_remaining
+        numeric total_credit
+        datetime created_at
+        datetime updated_at
+    }
+
+    BILL {
+        int id PK
+        int client_id FK
+        string bill_number
+        numeric total_amount
+        numeric total_paid
+        numeric total_remaining
+        string status "paid or not paid"
+        string delivery_status "delivered/on_the_way/not_delivered"
+        boolean notification_sent
+        datetime created_at
+        datetime updated_at
+    }
+
+    BILL_ITEM {
+        int id PK
+        int bill_id FK
+        int product_id FK
+        string product_name "snapshot"
+        numeric unit_price
+        int quantity
+        numeric subtotal
+        text selected_variants "JSON"
+        datetime created_at
+    }
+
+    PAYMENT {
+        int id PK
+        int bill_id FK
+        int admin_id FK
+        numeric amount_paid
+        string payment_method
+        string notes
+        datetime payment_date
+        datetime created_at
+    }
+
+    NOTIFICATION {
+        int id PK
+        int admin_id FK
+        int client_id FK
+        int bill_id FK
+        int stock_alert_id FK
+        string notification_type "new_bill/stock_alert/payment_received"
+        string channel
+        string message
+        boolean is_sent
+        datetime sent_at
+        datetime created_at
+    }
+
+    OTP {
+        int id PK
+        string email
+        string otp_code
+        string otp_type "registration or password_reset"
+        boolean is_used
+        boolean is_verified
+        datetime expires_at
+        datetime created_at
+    }
+
+    ECOMMERCE_ORDER {
+        int id PK
+        string full_name
+        string phone_number
+        int wilaya_id
+        string wilaya_name
+        int baladia_id
+        string baladia_name
+        string address_details
+        int product_id FK
+        string product_name_snapshot
+        numeric unit_price_snapshot
+        int quantity
+        text selected_variants "JSON"
+        numeric total_price
+        string status "pending/confirmed/shipped/delivered/cancelled"
+        string notes
+        boolean telegram_notified
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% ---- Relationships ----
+
+    ADMIN ||--o{ PRODUCT : "manages"
+    ADMIN ||--o{ PAYMENT : "processes"
+    ADMIN ||--o{ NOTIFICATION : "receives"
+
+    CATEGORY ||--o{ PRODUCT : "groups"
+
+    PRODUCT ||--o{ STOCK_ALERT : "triggers"
+    PRODUCT ||--o{ BILL_ITEM : "ordered in (B2B)"
+    PRODUCT ||--o{ ECOMMERCE_ORDER : "ordered in (storefront)"
+
+    CLIENT ||--|| CLIENT_ACCOUNT : "has"
+    CLIENT ||--o{ BILL : "has"
+    CLIENT ||--o{ NOTIFICATION : "receives"
+
+    BILL ||--o{ BILL_ITEM : "contains"
+    BILL ||--o{ PAYMENT : "paid by"
+    BILL ||--o{ NOTIFICATION : "generates"
+
+    STOCK_ALERT ||--o{ NOTIFICATION : "generates"

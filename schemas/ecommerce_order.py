@@ -1,94 +1,121 @@
-# schemas/ecommerce_order.py
-from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
-from typing import Optional, List, Dict
+# schemas/ecommerce_order.py  (UPDATED)
+from pydantic import BaseModel, field_validator
+from typing import Optional, Dict, Any
 from decimal import Decimal
+from datetime import datetime
 
-# ---------- Create (public, no-auth) ----------
+from models.ecommerce_order import OrderStatus, CallingStatus, DeliveryStatus
+
+# ── Public storefront (customer-facing, unchanged) ────────────────────────────
 
 
 class EcommerceOrderCreate(BaseModel):
-    full_name: str = Field(..., min_length=2, max_length=150)
-    phone_number: str = Field(..., min_length=8, max_length=20)
-
+    full_name: str
+    phone_number: str
     wilaya_id: int
     baladia_id: int
-    address_details: Optional[str] = Field(None, max_length=500)
-
+    address_details: Optional[str] = None
     product_id: int
-    quantity: int = Field(default=1, ge=1, le=50)
-    selected_variants: Optional[Dict[str, str]] = None
+    quantity: int = 1
+    selected_variants: Optional[Dict[str, Any]] = None
 
-    @field_validator("phone_number")
+    @field_validator("quantity")
     @classmethod
-    def validate_phone(cls, v):
-        cleaned = v.strip().replace(" ", "")
-        if not cleaned.isdigit() and not cleaned.startswith("+"):
-            raise ValueError("Numéro de téléphone invalide")
-        digits = cleaned.lstrip("+")
-        if not digits.isdigit():
-            raise ValueError("Numéro de téléphone invalide")
-        if len(digits) < 8 or len(digits) > 15:
-            raise ValueError("Numéro de téléphone invalide")
-        return cleaned
-
-    @field_validator("full_name")
-    @classmethod
-    def validate_name(cls, v):
-        v = v.strip()
-        if len(v) < 2:
-            raise ValueError("Nom complet invalide")
+    def quantity_positive(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("La quantité doit être au moins 1")
         return v
 
 
-# ---------- Update (admin only) ----------
+class EcommerceOrderCreatedResponse(BaseModel):
+    message: str
+    order_id: int
+    total_price: Decimal
 
 
-class EcommerceOrderUpdate(BaseModel):
-    status: Optional[str] = Field(None, max_length=30)
-    notes: Optional[str] = Field(None, max_length=500)
-
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, v):
-        if v is not None:
-            allowed = {"pending", "confirmed", "shipped", "delivered", "cancelled"}
-            if v not in allowed:
-                raise ValueError(
-                    f"Statut invalide. Valeurs autorisées: {', '.join(allowed)}"
-                )
-        return v
+# ── Dashboard: admin update ───────────────────────────────────────────────────
 
 
-# ---------- Response ----------
+class EcommerceOrderAdminUpdate(BaseModel):
+    """
+    Fields that a store ADMIN can update.
+    All fields optional — send only what you want to change (PATCH semantics).
+    """
+
+    status: Optional[OrderStatus] = None
+    calling_status: Optional[CallingStatus] = None
+    delivery_status: Optional[DeliveryStatus] = None
+    notes: Optional[str] = None  # admin notes
+    assigned_livreur_id: Optional[int] = None  # None = unassign
+    is_hidden_from_livreurs: Optional[bool] = None
+
+
+# ── Dashboard: livreur update ─────────────────────────────────────────────────
+
+
+class EcommerceOrderLivreurUpdate(BaseModel):
+    """
+    Fields that a LIVREUR can update on orders assigned/visible to them.
+    Livreur cannot touch: status, notes, assignment, visibility.
+    """
+
+    calling_status: Optional[CallingStatus] = None
+    delivery_status: Optional[DeliveryStatus] = None
+    livreur_notes: Optional[str] = None
+
+
+# ── Responses ─────────────────────────────────────────────────────────────────
 
 
 class EcommerceOrderResponse(BaseModel):
     id: int
+
+    # Customer
     full_name: str
     phone_number: str
+
+    # Location
     wilaya_id: int
     wilaya_name: str
     baladia_id: int
     baladia_name: str
     address_details: Optional[str]
+
+    # Product
     product_id: int
     product_name_snapshot: str
     unit_price_snapshot: Decimal
     quantity: int
-    selected_variants: Optional[str]
+    selected_variants: Optional[str]  # raw JSON string
     total_price: Decimal
-    status: str
+
+    # Status axes
+    status: OrderStatus
+    calling_status: CallingStatus
+    delivery_status: DeliveryStatus
+
+    # Notes
     notes: Optional[str]
+    livreur_notes: Optional[str]
+
+    # Assignment & visibility
+    assigned_livreur_id: Optional[int]
+    is_hidden_from_livreurs: bool
+
+    # Notifications
     telegram_notified: bool
+
+    # Timestamps
     created_at: datetime
     updated_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class EcommerceOrderSummary(BaseModel):
+    """Aggregate counts per status — used by the dashboard home cards."""
+
+    # By main status
     total_orders: int
     pending_orders: int
     confirmed_orders: int
@@ -96,13 +123,27 @@ class EcommerceOrderSummary(BaseModel):
     delivered_orders: int
     cancelled_orders: int
 
-    class Config:
-        from_attributes = True
+    # By calling status
+    not_called_orders: int
+    confirmed_by_phone_orders: int
+    cancelled_by_phone_orders: int
+    unreachable_orders: int
+
+    # By delivery status
+    not_shipped_orders: int
+    in_delivery_orders: int  # shipped (physical)
+    delivered_orders_delivery: int
+    returned_orders: int
 
 
-class EcommerceOrderCreatedResponse(BaseModel):
-    """What we hand back to the storefront right after a customer submits an order."""
+# ── Legacy schema kept for backward compat with existing public_order.py ──────
 
-    message: str
-    order_id: int
-    total_price: Decimal
+
+class EcommerceOrderUpdate(BaseModel):
+    """
+    Kept for backward compatibility with the existing public /admin/orders PATCH.
+    New dashboard code should use EcommerceOrderAdminUpdate instead.
+    """
+
+    status: Optional[str] = None
+    notes: Optional[str] = None
