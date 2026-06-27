@@ -13,6 +13,8 @@ from .upload import router as upload_images
 from .client_account import router as client_account_router
 from .public_order import router as public_order_router
 from .landing_blocks import router as landing_blocks_router
+from .store_auth import router as store_auth_router
+from .store_orders import router as store_orders_router
 
 # from routers.chat import router as chat_router
 
@@ -31,5 +33,7 @@ __all__ = [
     "client_account_router",
     "public_order_router",
     "landing_blocks_router",
+    "store_auth_router",
+    "store_orders_router",
     # "chat_router"
 ]

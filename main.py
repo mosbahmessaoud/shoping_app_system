@@ -20,6 +20,8 @@ from routers import (
     client_account_router,
     public_order_router,
     landing_blocks_router,
+    store_auth_router,
+    store_orders_router,
 )
 
 # Import de l'initialisation de la base de données - FIXED: Added server. prefix
@@ -173,6 +175,8 @@ app.include_router(upload_images)
 app.include_router(client_account_router)
 app.include_router(public_order_router)
 app.include_router(landing_blocks_router)
+app.include_router(store_auth_router)
+app.include_router(store_orders_router)
 
 # Point d'entrée pour exécuter l'application
 if __name__ == "__main__":
