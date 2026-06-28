@@ -15,6 +15,7 @@ from .public_order import router as public_order_router
 from .landing_blocks import router as landing_blocks_router
 from .store_auth import router as store_auth_router
 from .store_orders import router as store_orders_router
+from .proxy import router as proxy_router
 
 # from routers.chat import router as chat_router
 
@@ -35,5 +36,6 @@ __all__ = [
     "landing_blocks_router",
     "store_auth_router",
     "store_orders_router",
+    "proxy_router",
     # "chat_router"
 ]

@@ -22,6 +22,7 @@ from routers import (
     landing_blocks_router,
     store_auth_router,
     store_orders_router,
+    proxy_router
 )
 
 # Import de l'initialisation de la base de données - FIXED: Added server. prefix
@@ -177,6 +178,7 @@ app.include_router(public_order_router)
 app.include_router(landing_blocks_router)
 app.include_router(store_auth_router)
 app.include_router(store_orders_router)
+app.include_router(proxy_router, prefix="/api")
 
 # Point d'entrée pour exécuter l'application
 if __name__ == "__main__":
@@ -195,3 +197,5 @@ if __name__ == "__main__":
     """)
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False, log_level="info")
+
+
