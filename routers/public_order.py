@@ -1,5 +1,5 @@
-# routers/public_order.py
-from fastapi import APIRouter, Depends, HTTPException, status
+# routers/public_order.py  (UPDATED — tracking_code generation + /track endpoint)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional
 from decimal import Decimal
 import json
@@ -13,6 +13,7 @@ from schemas.ecommerce_order import (
     EcommerceOrderResponse,
     EcommerceOrderSummary,
     EcommerceOrderCreatedResponse,
+    OrderTrackingResponse,
 )
 from utils.db import get_db
 from utils.auth import get_current_admin
@@ -23,8 +24,8 @@ from utils.wilaya_data import (
     get_commune_by_id,
 )
 from utils.telegram_service import send_new_order_telegram_alert
+from utils.tracking import generate_tracking_code, generate_tracking_assets
 
-# After
 from sqlalchemy.orm import Session
 from sqlalchemy import case
 
@@ -32,21 +33,22 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/public", tags=["Public Storefront"])
 
+# Max retries when a generated tracking code collides with an existing one
+_TRACKING_CODE_MAX_RETRIES = 10
+
 
 # ============================================================
-# LOCATION LOOKUPS (for the storefront's shipping form)
+# LOCATION LOOKUPS
 # ============================================================
 
 
 @router.get("/locations/wilayas")
 def list_wilayas():
-    """Liste de toutes les wilayas (accès public, pas d'authentification)"""
     return get_all_wilayas()
 
 
 @router.get("/locations/wilayas/{wilaya_id}/baladias")
 def list_baladias_for_wilaya(wilaya_id: int):
-    """Liste des baladias (communes) d'une wilaya donnée (accès public)"""
     wilaya = get_wilaya_by_id(wilaya_id)
     if not wilaya:
         raise HTTPException(
@@ -56,7 +58,7 @@ def list_baladias_for_wilaya(wilaya_id: int):
 
 
 # ============================================================
-# PUBLIC STOREFRONT PRODUCTS (read-only, no auth)
+# PUBLIC PRODUCTS
 # ============================================================
 
 
@@ -67,32 +69,20 @@ def list_public_products(
     category_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    """
-    Liste des produits actifs pour la vitrine publique.
-
-    Ordering:
-      1. In-stock + special offer (is_sold=True)  → top
-      2. In-stock regular                          → middle
-      3. Out of stock (quantity_in_stock == 0)     → bottom
-    """
     query = db.query(Product).filter(Product.is_active == True)
-
     if category_id is not None:
         query = query.filter(Product.category_id == category_id)
 
     priority = case(
-        (Product.quantity_in_stock == 0, 2),  # out of stock  → last
-        (Product.is_sold == True, 0),  # special offer → first
-        else_=1,  # regular stock → middle
+        (Product.quantity_in_stock == 0, 2),
+        (Product.is_sold == True, 0),
+        else_=1,
     )
-
-    products = query.order_by(priority, Product.id).offset(skip).limit(limit).all()
-    return products
+    return query.order_by(priority, Product.id).offset(skip).limit(limit).all()
 
 
 @router.get("/products/{product_id}")
 def get_public_product(product_id: int, db: Session = Depends(get_db)):
-    """Détails d'un produit pour sa page de vente unique (accès public)"""
     product = (
         db.query(Product)
         .filter(Product.id == product_id, Product.is_active == True)
@@ -106,7 +96,7 @@ def get_public_product(product_id: int, db: Session = Depends(get_db)):
 
 
 # ============================================================
-# ORDER CREATION (public, no auth) — the COD lead capture
+# ORDER CREATION  (public, no auth)
 # ============================================================
 
 
@@ -119,10 +109,11 @@ def create_public_order(
     order_data: EcommerceOrderCreate, db: Session = Depends(get_db)
 ):
     """
-    Créer une commande COD depuis la vitrine publique.
-    Aucune authentification requise — c'est le point d'entrée des clients individuels.
+    Create a COD order from the public storefront.
+    Returns a tracking code + QR code PNG (base64) in the response
+    so the customer can save them immediately on the confirmation page.
     """
-    # 1. Validate product exists, is active, and is in stock
+    # 1. Validate product
     product = db.query(Product).filter(Product.id == order_data.product_id).first()
     if not product:
         raise HTTPException(
@@ -139,7 +130,7 @@ def create_public_order(
             detail=f"Stock insuffisant. Quantité disponible: {product.quantity_in_stock}",
         )
 
-    # 2. Validate wilaya / baladia
+    # 2. Validate location
     wilaya = get_wilaya_by_id(order_data.wilaya_id)
     if not wilaya:
         raise HTTPException(
@@ -152,7 +143,7 @@ def create_public_order(
             detail="Baladia invalide pour cette wilaya",
         )
 
-    # 3. Compute price snapshot (server-side truth, never trust client price)
+    # 3. Price
     unit_price = product.price
     total_price = (unit_price * order_data.quantity).quantize(Decimal("0.01"))
 
@@ -162,7 +153,24 @@ def create_public_order(
         else None
     )
 
-    # 4. Create order
+    # 4. Generate unique tracking code (retry on rare collision)
+    tracking_code = None
+    for _ in range(_TRACKING_CODE_MAX_RETRIES):
+        candidate = generate_tracking_code()
+        exists = (
+            db.query(EcommerceOrder)
+            .filter(EcommerceOrder.tracking_code == candidate)
+            .first()
+        )
+        if not exists:
+            tracking_code = candidate
+            break
+
+    if not tracking_code:
+        # Extremely unlikely — log and continue without a code rather than blocking the order
+        logger.error("Could not generate a unique tracking code after max retries")
+
+    # 5. Create order
     new_order = EcommerceOrder(
         full_name=order_data.full_name,
         phone_number=order_data.phone_number,
@@ -178,32 +186,90 @@ def create_public_order(
         selected_variants=selected_variants_json,
         total_price=total_price,
         status="pending",
+        tracking_code=tracking_code,
     )
 
     db.add(new_order)
     db.commit()
     db.refresh(new_order)
 
-    # 5. Optional Telegram notification — never blocks order success on failure
+    # 6. Telegram notification (non-blocking)
     try:
         sent = send_new_order_telegram_alert(new_order)
         if sent:
             new_order.telegram_notified = True
             db.commit()
     except Exception as e:
-        logger.error(
-            f"Unexpected error sending Telegram alert for order #{new_order.id}: {str(e)}"
-        )
+        logger.error(f"Telegram alert error for order #{new_order.id}: {e}")
+
+    # 7. Generate QR assets  (done after commit so order_id is available)
+    assets = (
+        generate_tracking_assets(new_order.tracking_code)
+        if new_order.tracking_code
+        else {
+            "tracking_code": "",
+            "qr_code_base64": "",
+            "tracking_url": "",
+        }
+    )
 
     return EcommerceOrderCreatedResponse(
         message="Commande passée avec succès. Nous vous contacterons bientôt.",
         order_id=new_order.id,
         total_price=total_price,
+        tracking_code=assets["tracking_code"],
+        qr_code_base64=assets["qr_code_base64"],
+        tracking_url=assets["tracking_url"],
     )
 
 
 # ============================================================
-# ADMIN MANAGEMENT (auth required) — separate from B2B Bill flow
+# PUBLIC ORDER TRACKING  (no auth — anyone with the code can check)
+# ============================================================
+
+
+@router.get("/track", response_model=OrderTrackingResponse)
+def track_order(
+    code: str = Query(
+        ...,
+        description="Tracking code printed on the customer's receipt, e.g. AB-4829-KT",
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Public endpoint — customers enter their tracking code (or scan their QR code)
+    to check where their order is.
+
+    Returns only delivery-relevant info — no phone number, no price, no internal notes.
+    """
+    # Normalize: uppercase + strip whitespace so "ab-4829-kt" works too
+    code = code.strip().upper()
+
+    order = (
+        db.query(EcommerceOrder).filter(EcommerceOrder.tracking_code == code).first()
+    )
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Code de suivi introuvable. Vérifiez le code et réessayez.",
+        )
+
+    return OrderTrackingResponse(
+        tracking_code=order.tracking_code,
+        order_id=order.id,
+        product_name=order.product_name_snapshot,
+        wilaya_name=order.wilaya_name,
+        baladia_name=order.baladia_name,
+        quantity=order.quantity,
+        status=order.status,
+        delivery_status=order.delivery_status,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+    )
+
+
+# ============================================================
+# ADMIN MANAGEMENT  (auth required — unchanged)
 # ============================================================
 
 
@@ -219,14 +285,12 @@ def get_all_ecommerce_orders(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Obtenir toutes les commandes e-commerce (admin seulement)"""
     query = db.query(EcommerceOrder)
     if status_filter:
         query = query.filter(EcommerceOrder.status == status_filter)
-    orders = (
+    return (
         query.order_by(EcommerceOrder.created_at.desc()).offset(skip).limit(limit).all()
     )
-    return orders
 
 
 @router.get(
@@ -237,7 +301,6 @@ def get_all_ecommerce_orders(
 def get_ecommerce_orders_summary(
     current_admin=Depends(get_current_admin), db: Session = Depends(get_db)
 ):
-    """Résumé des commandes e-commerce par statut (admin seulement)"""
     total = db.query(EcommerceOrder).count()
     pending = (
         db.query(EcommerceOrder).filter(EcommerceOrder.status == "pending").count()
@@ -262,6 +325,14 @@ def get_ecommerce_orders_summary(
         shipped_orders=shipped,
         delivered_orders=delivered,
         cancelled_orders=cancelled,
+        not_called_orders=0,
+        confirmed_by_phone_orders=0,
+        cancelled_by_phone_orders=0,
+        unreachable_orders=0,
+        not_shipped_orders=0,
+        in_delivery_orders=0,
+        delivered_orders_delivery=0,
+        returned_orders=0,
     )
 
 
@@ -275,7 +346,6 @@ def get_ecommerce_order_by_id(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Obtenir une commande e-commerce par son ID (admin seulement)"""
     order = db.query(EcommerceOrder).filter(EcommerceOrder.id == order_id).first()
     if not order:
         raise HTTPException(
@@ -295,18 +365,15 @@ def update_ecommerce_order(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Mettre à jour le statut/notes d'une commande e-commerce (admin seulement)"""
     order = db.query(EcommerceOrder).filter(EcommerceOrder.id == order_id).first()
     if not order:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Commande non trouvée"
         )
-
     if update_data.status is not None:
         order.status = update_data.status
     if update_data.notes is not None:
         order.notes = update_data.notes
-
     db.commit()
     db.refresh(order)
     return order
@@ -322,7 +389,6 @@ def delete_ecommerce_order(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Supprimer une commande e-commerce (admin seulement)"""
     order = db.query(EcommerceOrder).filter(EcommerceOrder.id == order_id).first()
     if not order:
         raise HTTPException(

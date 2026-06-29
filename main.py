@@ -22,7 +22,7 @@ from routers import (
     landing_blocks_router,
     store_auth_router,
     store_orders_router,
-    proxy_router
+    proxy_router,
 )
 
 # Import de l'initialisation de la base de données - FIXED: Added server. prefix

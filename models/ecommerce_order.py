@@ -1,12 +1,4 @@
-# models/ecommerce_order.py  (UPDATED)
-#
-# Changes vs original:
-#   + calling_status  — tracks phone call attempts (call1/call2/call3/…)
-#   + delivery_status — tracks physical delivery pipeline
-#   + assigned_livreur_id — FK to store_users (nullable; NULL = visible to all livreurs)
-#   + is_hidden_from_livreurs — admin can hide specific orders from all livreurs
-#   + livreur_notes — livreur can add their own notes without overwriting admin notes
-#
+# models/ecommerce_order.py  (UPDATED — added tracking_code column)
 from sqlalchemy import (
     Column,
     Integer,
@@ -28,8 +20,6 @@ from utils.db import Base
 
 
 class OrderStatus(str, enum.Enum):
-    """Main lifecycle of the COD order."""
-
     pending = "pending"
     confirmed = "confirmed"
     shipped = "shipped"
@@ -38,11 +28,6 @@ class OrderStatus(str, enum.Enum):
 
 
 class CallingStatus(str, enum.Enum):
-    """
-    Tracks phone-call attempts made to the customer.
-    Intentionally kept flat — easy to extend later.
-    """
-
     not_called = "not_called"
     call1 = "call1"
     call2 = "call2"
@@ -54,11 +39,6 @@ class CallingStatus(str, enum.Enum):
 
 
 class DeliveryStatus(str, enum.Enum):
-    """
-    Tracks the physical shipment pipeline.
-    Intentionally simple — easy to extend later.
-    """
-
     not_shipped = "not_shipped"
     shipped = "shipped"
     delivered = "delivered"
@@ -69,20 +49,6 @@ class DeliveryStatus(str, enum.Enum):
 
 
 class EcommerceOrder(Base):
-    """
-    COD order placed by an individual customer through the public storefront.
-
-    Status columns (three independent axes):
-      • status          — overall order lifecycle
-      • calling_status  — phone-call tracking
-      • delivery_status — physical shipment tracking
-
-    Visibility:
-      • is_hidden_from_livreurs = True  → only store admins can see this order
-      • assigned_livreur_id     = <id>  → (informational) which livreur is handling it;
-                                          NULL means any livreur can see it (if not hidden)
-    """
-
     __tablename__ = "ecommerce_orders"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -91,7 +57,7 @@ class EcommerceOrder(Base):
     full_name = Column(String(150), nullable=False)
     phone_number = Column(String(20), nullable=False, index=True)
 
-    # ── Shipping location (Algeria wilaya / baladia) ──────────────────────────
+    # ── Shipping location ─────────────────────────────────────────────────────
     wilaya_id = Column(Integer, nullable=False)
     wilaya_name = Column(String(100), nullable=False)
     baladia_id = Column(Integer, nullable=False)
@@ -103,10 +69,14 @@ class EcommerceOrder(Base):
     product_name_snapshot = Column(String(300), nullable=False)
     unit_price_snapshot = Column(Numeric(10, 2), nullable=False)
     quantity = Column(Integer, nullable=False, default=1)
-    selected_variants = Column(
-        Text, nullable=True
-    )  # JSON: {"size": "M", "color": "Red"}
+    selected_variants = Column(Text, nullable=True)  # JSON string
     total_price = Column(Numeric(10, 2), nullable=False)
+
+    # ── Tracking ──────────────────────────────────────────────────────────────
+    # Short human-readable code  e.g.  AB-4829-KT
+    # Unique per order — customers use it to track delivery status.
+    # nullable=True so existing rows without a code don't break.
+    tracking_code = Column(String(20), nullable=True, unique=True, index=True)
 
     # ── Status axes ───────────────────────────────────────────────────────────
     status = Column(
@@ -115,14 +85,12 @@ class EcommerceOrder(Base):
         default=OrderStatus.pending,
         index=True,
     )
-
     calling_status = Column(
         SAEnum(CallingStatus, name="calling_status"),
         nullable=False,
         default=CallingStatus.not_called,
         index=True,
     )
-
     delivery_status = Column(
         SAEnum(DeliveryStatus, name="delivery_status"),
         nullable=False,
